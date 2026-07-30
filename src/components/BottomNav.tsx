@@ -6,19 +6,45 @@ import {
   BarChart3,
   Plus,
   Menu,
-  Boxes
+  Boxes,
+  Receipt,
+  ReceiptText,
+  User,
+  Home
 } from 'lucide-react';
 
 export const BottomNav: React.FC = () => {
-  const { activeTab, setActiveTab } = useApp();
+  const { activeTab, setActiveTab, userRole } = useApp();
 
-  const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'sales', label: 'Sales POS', icon: ShoppingBag },
-    { id: 'inventory', label: 'Products', icon: Boxes },
-    { id: 'reports', label: 'Reports', icon: BarChart3 },
-    { id: 'more', label: 'More', icon: Menu },
-  ];
+  // Role-specific bottom navigation configuration
+  let navItems = [];
+
+  if (userRole === 'salesperson') {
+    navItems = [
+      { id: 'dashboard', label: 'Home', icon: Home },
+      { id: 'sales', label: 'New Sale', icon: ShoppingBag },
+      { id: 'transactions', label: 'Transactions', icon: ReceiptText },
+      { id: 'more', label: 'Profile', icon: User },
+    ];
+  } else if (userRole === 'manager') {
+    navItems = [
+      { id: 'dashboard', label: 'Home', icon: Home },
+      { id: 'sales', label: 'Sales', icon: ShoppingBag },
+      { id: 'expenses', label: 'Expenses', icon: Receipt },
+      { id: 'inventory', label: 'Inventory', icon: Boxes },
+      { id: 'reports', label: 'Reports', icon: BarChart3 },
+    ];
+  } else {
+    // Administrator & Super Administrator
+    navItems = [
+      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { id: 'sales', label: 'Sales', icon: ShoppingBag },
+      { id: 'expenses', label: 'Expenses', icon: Receipt },
+      { id: 'inventory', label: 'Inventory', icon: Boxes },
+      { id: 'reports', label: 'Reports', icon: BarChart3 },
+      { id: 'more', label: 'More', icon: Menu },
+    ];
+  }
 
   return (
     <>
@@ -38,12 +64,12 @@ export const BottomNav: React.FC = () => {
         <div className="max-w-md mx-auto flex items-center justify-around">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = activeTab === item.id;
+            const isActive = activeTab === item.id || (item.id === 'transactions' && activeTab === 'sales');
             return (
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`flex flex-col items-center justify-center py-1 px-3 rounded-2xl transition-all min-w-[64px] ${
+                className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-2xl transition-all min-w-[56px] ${
                   isActive
                     ? 'text-rose-600 dark:text-rose-400 font-bold scale-105'
                     : 'text-slate-400 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'

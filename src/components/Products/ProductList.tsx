@@ -176,7 +176,9 @@ export const ProductList: React.FC = () => {
               <tr className="bg-slate-50/70 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-700 text-slate-400 font-bold uppercase tracking-wider">
                 <th className="p-4 sm:p-5">Product Info</th>
                 <th className="p-4 sm:p-5">Category</th>
-                <th className="p-4 sm:p-5 text-right">Cost Price</th>
+                {(userRole === 'administrator' || userRole === 'super_admin') && (
+                  <th className="p-4 sm:p-5 text-right">Cost Price</th>
+                )}
                 <th className="p-4 sm:p-5 text-right">Selling Price</th>
                 <th className="p-4 sm:p-5 text-center">Current Stock</th>
                 <th className="p-4 sm:p-5 text-center">Actions</th>
@@ -218,9 +220,11 @@ export const ProductList: React.FC = () => {
                         </span>
                       </td>
 
-                      <td className="p-4 sm:p-5 text-right font-medium text-slate-400">
-                        {formatCurrency(p.costPrice, symbol)}
-                      </td>
+                      {(userRole === 'administrator' || userRole === 'super_admin') && (
+                        <td className="p-4 sm:p-5 text-right font-medium text-slate-400">
+                          {formatCurrency(p.costPrice, symbol)}
+                        </td>
+                      )}
 
                       <td className="p-4 sm:p-5 text-right font-black text-rose-600 dark:text-rose-400">
                         {formatCurrency(p.sellingPrice, symbol)}

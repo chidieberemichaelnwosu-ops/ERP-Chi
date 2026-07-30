@@ -10,19 +10,21 @@ import {
   Boxes,
   HelpCircle,
   FileSpreadsheet,
-  ChevronRight
+  ChevronRight,
+  UserCheck
 } from 'lucide-react';
 
 export const MoreMenu: React.FC = () => {
-  const { setActiveTab } = useApp();
+  const { setActiveTab, userRole, userName, setUserRole } = useApp();
 
-  const menuItems = [
+  const allMenuItems = [
     {
       id: 'purchases',
       title: 'Purchases & Suppliers',
       subtitle: 'Record supplier invoices & restocks',
       icon: Truck,
       color: 'bg-purple-100 text-purple-600',
+      roles: ['super_admin', 'administrator', 'manager'],
     },
     {
       id: 'customers',
@@ -30,6 +32,7 @@ export const MoreMenu: React.FC = () => {
       subtitle: 'Track purchase history & customer debts',
       icon: Users,
       color: 'bg-blue-100 text-blue-600',
+      roles: ['super_admin', 'administrator', 'manager', 'salesperson'],
     },
     {
       id: 'expenses',
@@ -37,6 +40,7 @@ export const MoreMenu: React.FC = () => {
       subtitle: 'Log transport, generator fuel & rent',
       icon: Receipt,
       color: 'bg-rose-100 text-rose-600',
+      roles: ['super_admin', 'administrator', 'manager'],
     },
     {
       id: 'inventory',
@@ -44,6 +48,7 @@ export const MoreMenu: React.FC = () => {
       subtitle: 'Damaged goods, returns & stock in/out',
       icon: Boxes,
       color: 'bg-emerald-100 text-emerald-600',
+      roles: ['super_admin', 'administrator', 'manager'],
     },
     {
       id: 'reports',
@@ -51,6 +56,7 @@ export const MoreMenu: React.FC = () => {
       subtitle: 'Generate PDF, Excel & CSV reports',
       icon: FileSpreadsheet,
       color: 'bg-amber-100 text-amber-600',
+      roles: ['super_admin', 'administrator', 'manager'],
     },
     {
       id: 'settings',
@@ -58,17 +64,47 @@ export const MoreMenu: React.FC = () => {
       subtitle: 'Store details, currency, tax & backups',
       icon: Settings,
       color: 'bg-slate-100 text-slate-600',
+      roles: ['super_admin', 'administrator'],
     },
   ];
 
+  const menuItems = allMenuItems.filter((item) => item.roles.includes(userRole));
+
   return (
     <div className="p-3 sm:p-6 max-w-2xl mx-auto space-y-4 pb-28">
+      {/* Profile Header for Salesperson or All Users */}
+      <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-rose-100 dark:border-slate-700 shadow-xs flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-rose-500 text-white font-black text-lg flex items-center justify-center uppercase">
+            {userName ? userName[0] : 'S'}
+          </div>
+          <div>
+            <h3 className="font-extrabold text-slate-900 dark:text-white text-sm">{userName || 'Active Staff User'}</h3>
+            <span className="text-xs text-rose-600 dark:text-rose-400 font-bold uppercase tracking-wider">{userRole}</span>
+          </div>
+        </div>
+
+        <div className="text-right">
+          <span className="text-[10px] text-slate-400 block font-bold uppercase">Role Switcher</span>
+          <select
+            value={userRole}
+            onChange={(e) => setUserRole(e.target.value as any)}
+            className="mt-1 px-3 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-extrabold text-slate-700 dark:text-slate-200 outline-none"
+          >
+            <option value="super_admin">Super Administrator</option>
+            <option value="administrator">Administrator</option>
+            <option value="manager">Manager</option>
+            <option value="salesperson">Sales Person</option>
+          </select>
+        </div>
+      </div>
+
       <div>
         <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
-          All Modules & Utilities
+          Accessible Modules
         </h2>
         <p className="text-xs text-slate-500">
-          Quickly jump to secondary tools and business administration features.
+          Features available for your role permission profile.
         </p>
       </div>
 

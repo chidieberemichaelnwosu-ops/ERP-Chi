@@ -102,6 +102,14 @@ export const Header: React.FC = () => {
                 Switch Role
               </div>
               <button
+                onClick={() => setUserRole('super_admin')}
+                className={`w-full text-left px-3 py-1.5 text-xs font-medium hover:bg-rose-50 dark:hover:bg-slate-700 ${
+                  userRole === 'super_admin' ? 'text-rose-600 font-bold' : 'text-slate-700 dark:text-slate-200'
+                }`}
+              >
+                Super Administrator
+              </button>
+              <button
                 onClick={() => setUserRole('administrator')}
                 className={`w-full text-left px-3 py-1.5 text-xs font-medium hover:bg-rose-50 dark:hover:bg-slate-700 ${
                   userRole === 'administrator' ? 'text-rose-600 font-bold' : 'text-slate-700 dark:text-slate-200'

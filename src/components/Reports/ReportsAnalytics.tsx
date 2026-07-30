@@ -41,6 +41,7 @@ export const ReportsAnalytics: React.FC = () => {
     suppliers,
     purchases,
     settings,
+    userRole,
   } = useApp();
 
   const symbol = settings.currencySymbol || '₦';
@@ -223,14 +224,6 @@ export const ReportsAnalytics: React.FC = () => {
         </div>
 
         <div className="bg-white dark:bg-slate-800 p-6 rounded-[32px] border border-slate-100 dark:border-slate-700/80 shadow-xs">
-          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Gross Profit</span>
-          <h3 className="text-2xl font-black text-teal-600 dark:text-teal-400 mt-1">
-            {formatCurrency(periodGrossProfit, symbol)}
-          </h3>
-          <p className="text-[11px] text-slate-400 font-medium mt-1">Revenue minus COGS</p>
-        </div>
-
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-[32px] border border-slate-100 dark:border-slate-700/80 shadow-xs">
           <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Expenses</span>
           <h3 className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">
             {formatCurrency(periodExpenseTotal, symbol)}
@@ -239,14 +232,32 @@ export const ReportsAnalytics: React.FC = () => {
         </div>
 
         <div className="bg-white dark:bg-slate-800 p-6 rounded-[32px] border border-slate-100 dark:border-slate-700/80 shadow-xs">
-          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Net Profit & Margin</span>
-          <h3 className={`text-2xl font-black mt-1 ${periodNetProfit >= 0 ? 'text-rose-600 dark:text-rose-400' : 'text-rose-600'}`}>
-            {formatCurrency(periodNetProfit, symbol)}
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Invoices</span>
+          <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+            {periodSales.length}
           </h3>
-          <p className="text-[11px] font-extrabold text-rose-600 mt-1">
-            Profit Margin: {periodProfitMargin}%
-          </p>
+          <p className="text-[11px] text-slate-400 font-medium mt-1">Sales orders processed</p>
         </div>
+
+        {userRole === 'manager' ? (
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-[32px] border border-slate-100 dark:border-slate-700/80 shadow-xs">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Avg Order Value</span>
+            <h3 className="text-2xl font-black text-teal-600 dark:text-teal-400 mt-1">
+              {formatCurrency(periodSales.length > 0 ? periodRevenue / periodSales.length : 0, symbol)}
+            </h3>
+            <p className="text-[11px] text-slate-400 font-medium mt-1">Revenue per receipt</p>
+          </div>
+        ) : (
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-[32px] border border-slate-100 dark:border-slate-700/80 shadow-xs">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Net Profit & Margin</span>
+            <h3 className={`text-2xl font-black mt-1 ${periodNetProfit >= 0 ? 'text-rose-600 dark:text-rose-400' : 'text-rose-600'}`}>
+              {formatCurrency(periodNetProfit, symbol)}
+            </h3>
+            <p className="text-[11px] font-extrabold text-rose-600 mt-1">
+              Profit Margin: {periodProfitMargin}%
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Payment Method Distribution Chart */}
