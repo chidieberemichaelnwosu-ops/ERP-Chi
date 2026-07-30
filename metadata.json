@@ -1,0 +1,6 @@
+{
+  "name": "GlowERP Cosmetics",
+  "description": "Modern mobile-first ERP for cosmetics business with instant offline sales, automatic product creation, inventory management, reports, and debt tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
