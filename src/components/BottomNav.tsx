@@ -16,35 +16,17 @@ import {
 export const BottomNav: React.FC = () => {
   const { activeTab, setActiveTab, userRole } = useApp();
 
-  // Role-specific bottom navigation configuration
-  let navItems = [];
-
-  if (userRole === 'salesperson') {
-    navItems = [
-      { id: 'dashboard', label: 'Home', icon: Home },
-      { id: 'sales', label: 'New Sale', icon: ShoppingBag },
-      { id: 'transactions', label: 'Transactions', icon: ReceiptText },
-      { id: 'more', label: 'Profile', icon: User },
-    ];
-  } else if (userRole === 'manager') {
-    navItems = [
-      { id: 'dashboard', label: 'Home', icon: Home },
-      { id: 'sales', label: 'Sales', icon: ShoppingBag },
-      { id: 'expenses', label: 'Expenses', icon: Receipt },
-      { id: 'inventory', label: 'Inventory', icon: Boxes },
-      { id: 'reports', label: 'Reports', icon: BarChart3 },
-    ];
-  } else {
-    // Administrator & Super Administrator
-    navItems = [
-      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { id: 'sales', label: 'Sales', icon: ShoppingBag },
-      { id: 'expenses', label: 'Expenses', icon: Receipt },
-      { id: 'inventory', label: 'Inventory', icon: Boxes },
-      { id: 'reports', label: 'Reports', icon: BarChart3 },
-      { id: 'more', label: 'More', icon: Menu },
-    ];
-  }
+  // Clean, focused 4-item bottom navigation across roles
+  const navItems = [
+    { id: 'dashboard', label: 'Home', icon: Home },
+    { id: 'sales', label: 'Sales (POS)', icon: ShoppingBag },
+    { id: 'transactions', label: 'Transactions', icon: ReceiptText },
+    {
+      id: 'more',
+      label: userRole === 'salesperson' ? 'Profile' : 'More',
+      icon: userRole === 'salesperson' ? User : Menu,
+    },
+  ];
 
   return (
     <>
@@ -64,7 +46,7 @@ export const BottomNav: React.FC = () => {
         <div className="max-w-md mx-auto flex items-center justify-around">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = activeTab === item.id || (item.id === 'transactions' && activeTab === 'sales');
+            const isActive = activeTab === item.id;
             return (
               <button
                 key={item.id}

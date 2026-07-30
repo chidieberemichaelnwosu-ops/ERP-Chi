@@ -11,6 +11,7 @@ import { CustomerManager } from './components/Customers/CustomerManager';
 import { ExpenseTracker } from './components/Expenses/ExpenseTracker';
 import { ReportsAnalytics } from './components/Reports/ReportsAnalytics';
 import { SettingsView } from './components/Settings/SettingsView';
+import { TransactionsView } from './components/Transactions/TransactionsView';
 import { MoreMenu } from './components/MoreMenu';
 import { NotificationsModal } from './components/NotificationsModal';
 import { GlobalSearchModal } from './components/GlobalSearchModal';
@@ -32,6 +33,8 @@ const MainLayout: React.FC = () => {
         return <CustomerManager />;
       case 'expenses':
         return <ExpenseTracker />;
+      case 'transactions':
+        return <TransactionsView />;
       case 'reports':
         return <ReportsAnalytics />;
       case 'settings':
