@@ -132,15 +132,6 @@ export const Dashboard: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
-            {/* ONE Primary New Sale POS Button */}
-            <button
-              onClick={() => setActiveTab('sales')}
-              className="px-6 py-3 rounded-2xl bg-white text-rose-600 hover:bg-rose-50 font-black text-xs sm:text-sm shadow-lg active:scale-95 transition flex items-center justify-center gap-2 shrink-0"
-            >
-              <Plus className="w-4 h-4 stroke-[3]" />
-              New Sale POS
-            </button>
-
             {/* ONE Sync/Refresh Button */}
             <button
               onClick={triggerSync}
@@ -158,15 +149,29 @@ export const Dashboard: React.FC = () => {
   };
 
   // ------------------------------------------------------------------
-  // QUICK ACTIONS COMPONENT (No duplicate New Sale button)
+  // QUICK ACTIONS COMPONENT (Single primary New Sale button)
   // ------------------------------------------------------------------
   const QuickActionsGrid = () => (
     <div className="space-y-2">
       <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-400">
         Quick Action Controls
       </h3>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {/* 1. New Expense (Manager, Administrator & Super Admin) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* 1. Primary New Sale POS (Single Primary Entry Point) */}
+        <button
+          onClick={() => setActiveTab('sales')}
+          className="p-4 bg-rose-600 text-white rounded-2xl border border-rose-500 text-left hover:bg-rose-700 active:scale-95 transition flex items-center gap-3 shadow-sm shadow-rose-950/20"
+        >
+          <div className="p-2.5 rounded-xl bg-white/20 text-white">
+            <Plus className="w-5 h-5 stroke-[3]" />
+          </div>
+          <div>
+            <span className="font-black text-xs block text-white">New Sale POS</span>
+            <span className="text-[10px] text-rose-100 font-medium">Record customer order</span>
+          </div>
+        </button>
+
+        {/* 2. New Expense (Manager, Administrator & Super Admin) */}
         {(userRole === 'manager' || userRole === 'administrator' || userRole === 'super_admin') && (
           <button
             onClick={() => setActiveTab('expenses')}
@@ -182,7 +187,7 @@ export const Dashboard: React.FC = () => {
           </button>
         )}
 
-        {/* 2. Stock Control / Inventory (Manager, Administrator & Super Admin) */}
+        {/* 3. Stock Control / Inventory (Manager, Administrator & Super Admin) */}
         {(userRole === 'manager' || userRole === 'administrator' || userRole === 'super_admin') && (
           <button
             onClick={() => setActiveTab('inventory')}
@@ -198,7 +203,7 @@ export const Dashboard: React.FC = () => {
           </button>
         )}
 
-        {/* 3. View Transactions History (All Roles) */}
+        {/* 4. View Transactions History (All Roles) */}
         <button
           onClick={() => setActiveTab('transactions')}
           className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-left hover:border-rose-500 active:scale-95 transition flex items-center gap-3"
@@ -207,7 +212,7 @@ export const Dashboard: React.FC = () => {
             <ReceiptText className="w-5 h-5" />
           </div>
           <div>
-            <span className="font-extrabold text-xs block text-slate-900 dark:text-white">All Transactions History</span>
+            <span className="font-extrabold text-xs block text-slate-900 dark:text-white">All Transactions</span>
             <span className="text-[10px] text-slate-400">Complete sales & expenses audit</span>
           </div>
         </button>

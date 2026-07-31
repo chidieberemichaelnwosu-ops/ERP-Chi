@@ -90,50 +90,19 @@ export const Header: React.FC = () => {
             )}
           </div>
 
-          {/* Role Switcher */}
-          <div className="relative group">
-            <button className="flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-rose-50 dark:bg-pink-950/40 border border-rose-100 dark:border-pink-900/50 text-rose-700 dark:text-rose-300 text-xs font-bold hover:bg-rose-100 transition">
-              <UserCheck className="w-3.5 h-3.5" />
-              <span className="capitalize hidden sm:inline">{userRole}</span>
-              <ChevronDown className="w-3 h-3 text-rose-500" />
-            </button>
-            <div className="absolute right-0 top-full mt-1.5 w-44 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-700 py-1.5 hidden group-hover:block z-50">
-              <div className="px-3 py-1 text-[10px] font-bold uppercase text-slate-400 tracking-wider">
-                Switch Role
-              </div>
-              <button
-                onClick={() => setUserRole('super_admin')}
-                className={`w-full text-left px-3 py-1.5 text-xs font-medium hover:bg-rose-50 dark:hover:bg-slate-700 ${
-                  userRole === 'super_admin' ? 'text-rose-600 font-bold' : 'text-slate-700 dark:text-slate-200'
-                }`}
-              >
-                Super Administrator
-              </button>
-              <button
-                onClick={() => setUserRole('administrator')}
-                className={`w-full text-left px-3 py-1.5 text-xs font-medium hover:bg-rose-50 dark:hover:bg-slate-700 ${
-                  userRole === 'administrator' ? 'text-rose-600 font-bold' : 'text-slate-700 dark:text-slate-200'
-                }`}
-              >
-                Administrator
-              </button>
-              <button
-                onClick={() => setUserRole('manager')}
-                className={`w-full text-left px-3 py-1.5 text-xs font-medium hover:bg-rose-50 dark:hover:bg-slate-700 ${
-                  userRole === 'manager' ? 'text-rose-600 font-bold' : 'text-slate-700 dark:text-slate-200'
-                }`}
-              >
-                Manager
-              </button>
-              <button
-                onClick={() => setUserRole('salesperson')}
-                className={`w-full text-left px-3 py-1.5 text-xs font-medium hover:bg-rose-50 dark:hover:bg-slate-700 ${
-                  userRole === 'salesperson' ? 'text-rose-600 font-bold' : 'text-slate-700 dark:text-slate-200'
-                }`}
-              >
-                Salesperson
-              </button>
-            </div>
+          {/* Read-Only Role Indicator */}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-rose-50 dark:bg-slate-800 border border-rose-100 dark:border-slate-700 text-rose-700 dark:text-rose-300 text-xs font-extrabold select-none">
+            <UserCheck className="w-3.5 h-3.5 text-rose-500" />
+            <span className="hidden sm:inline text-[10px] text-slate-400 font-bold uppercase mr-0.5">Role:</span>
+            <span>
+              {userRole === 'salesperson'
+                ? 'Sales Person'
+                : userRole === 'manager'
+                ? 'Manager'
+                : userRole === 'administrator'
+                ? 'Administrator'
+                : 'Super Admin'}
+            </span>
           </div>
 
           {/* Notifications Trigger */}

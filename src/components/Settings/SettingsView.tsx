@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import { UserRole } from '../../types';
 import {
   Settings,
   Store,
@@ -14,15 +15,35 @@ import {
   FileText,
   UserCheck,
   Check,
-  Sparkles
+  Sparkles,
+  UserPlus,
+  Lock,
+  UserX,
+  KeyRound,
+  Trash2,
+  AlertCircle
 } from 'lucide-react';
+
+interface StaffUserItem {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  status: 'active' | 'disabled';
+}
+
+const INITIAL_STAFF_USERS: StaffUserItem[] = [
+  { id: 'usr-1', name: 'Chidi Nwosu (Store Owner)', email: 'chidi@glossyerp.com', role: 'super_admin', status: 'active' },
+  { id: 'usr-2', name: 'Amaka Eze (Operations Lead)', email: 'amaka@glossyerp.com', role: 'administrator', status: 'active' },
+  { id: 'usr-3', name: 'Kelechi Okafor (Store Supervisor)', email: 'kelechi@glossyerp.com', role: 'manager', status: 'active' },
+  { id: 'usr-4', name: 'Blessing Bello (POS Terminal)', email: 'blessing@glossyerp.com', role: 'salesperson', status: 'active' },
+];
 
 export const SettingsView: React.FC = () => {
   const {
     settings,
     updateSettings,
     userRole,
-    setUserRole,
     auditLogs,
     exportDatabaseJSON,
     importDatabaseJSON,
@@ -31,6 +52,106 @@ export const SettingsView: React.FC = () => {
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'general' | 'tax' | 'roles' | 'backup' | 'audit'>('general');
+
+  // Staff User Management State
+  const [staffUsers, setStaffUsers] = useState<StaffUserItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('glow_erp_staff_users');
+      return saved ? JSON.parse(saved) : INITIAL_STAFF_USERS;
+    } catch {
+      return INITIAL_STAFF_USERS;
+    }
+  });
+
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserRole, setNewUserRole] = useState<UserRole>('salesperson');
+
+  const saveStaffUsersList = (users: StaffUserItem[]) => {
+    setStaffUsers(users);
+    try {
+      localStorage.setItem('glow_erp_staff_users', JSON.stringify(users));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleCreateStaffUser = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newUserName.trim() || !newUserEmail.trim()) return;
+
+    // Security check: Administrator cannot create Super Admin or Administrator
+    if (userRole === 'administrator' && (newUserRole === 'super_admin' || newUserRole === 'administrator')) {
+      alert('Administrators can only assign Sales Person and Manager roles.');
+      return;
+    }
+
+    const newUser: StaffUserItem = {
+      id: `usr-${Date.now()}`,
+      name: newUserName.trim(),
+      email: newUserEmail.trim(),
+      role: newUserRole,
+      status: 'active',
+    };
+
+    saveStaffUsersList([...staffUsers, newUser]);
+    setNewUserName('');
+    setNewUserEmail('');
+    setNewUserRole('salesperson');
+    setShowAddUserModal(false);
+    alert(`Staff account for ${newUser.name} created successfully!`);
+  };
+
+  const handleChangeStaffRole = (userId: string, targetRole: UserRole) => {
+    const targetUser = staffUsers.find(u => u.id === userId);
+    if (!targetUser) return;
+
+    // Security checks
+    if (userRole === 'administrator') {
+      if (targetUser.role === 'super_admin' || targetUser.role === 'administrator') {
+        alert('Administrators cannot modify Super Administrator or Administrator accounts.');
+        return;
+      }
+      if (targetRole === 'super_admin' || targetRole === 'administrator') {
+        alert('Administrators can only assign Sales Person or Manager roles.');
+        return;
+      }
+    }
+
+    const updated = staffUsers.map(u => (u.id === userId ? { ...u, role: targetRole } : u));
+    saveStaffUsersList(updated);
+  };
+
+  const handleToggleStaffStatus = (userId: string) => {
+    const targetUser = staffUsers.find(u => u.id === userId);
+    if (!targetUser) return;
+
+    if (userRole === 'administrator' && (targetUser.role === 'super_admin' || targetUser.role === 'administrator')) {
+      alert('Administrators cannot disable Super Administrator or Administrator accounts.');
+      return;
+    }
+
+    const updated = staffUsers.map(u =>
+      u.id === userId ? { ...u, status: (u.status === 'active' ? 'disabled' : 'active') as 'active' | 'disabled' } : u
+    );
+    saveStaffUsersList(updated);
+  };
+
+  const handleDeleteStaffUser = (userId: string) => {
+    if (userRole !== 'super_admin') {
+      alert('Only the Super Administrator has permission to delete staff user accounts.');
+      return;
+    }
+    const targetUser = staffUsers.find(u => u.id === userId);
+    if (targetUser?.role === 'super_admin') {
+      alert('Cannot delete the primary Super Administrator account.');
+      return;
+    }
+    if (confirm('Are you sure you want to remove this staff account?')) {
+      saveStaffUsersList(staffUsers.filter(u => u.id !== userId));
+    }
+  };
 
   // Form State
   const [bName, setBName] = useState(settings.businessName);
@@ -350,54 +471,254 @@ export const SettingsView: React.FC = () => {
         </form>
       )}
 
-      {/* Tab 2: User Roles */}
+      {/* Tab 3: Staff Roles & User Security Management */}
       {activeTab === 'roles' && (
-        <div className="bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-[32px] border border-slate-100 dark:border-slate-700/80 shadow-xs space-y-4 max-w-2xl">
-          <h3 className="font-extrabold text-rose-900 dark:text-white text-base">
-            Active User Role Switcher
-          </h3>
-          <p className="text-xs text-slate-400">
-            Select a role to preview role-based access restrictions across the application.
-          </p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {[
-              {
-                id: 'administrator',
-                title: 'Administrator',
-                desc: 'Full system access, inventory edits, settings, backup, and report exports.',
-              },
-              {
-                id: 'manager',
-                title: 'Manager',
-                desc: 'Sales, inventory management, supplier purchases, and report views.',
-              },
-              {
-                id: 'salesperson',
-                title: 'Salesperson',
-                desc: 'Fast sales entry, customer selection, and receipt printing.',
-              },
-            ].map((r) => {
-              const isSelected = userRole === r.id;
-              return (
-                <div
-                  key={r.id}
-                  onClick={() => setUserRole(r.id as any)}
-                  className={`p-5 rounded-[24px] border-2 cursor-pointer transition-all ${
-                    isSelected
-                      ? 'border-rose-500 bg-rose-50 dark:bg-rose-950/40 text-rose-900 dark:text-rose-300 shadow-md shadow-rose-100 dark:shadow-none'
-                      : 'border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-extrabold text-sm">{r.title}</h4>
-                    {isSelected && <Check className="w-4 h-4 text-rose-500" />}
-                  </div>
-                  <p className="text-[11px] mt-2 opacity-80 font-medium">{r.desc}</p>
+        <div className="space-y-6">
+          {/* 1. SALES PERSON OR MANAGER READ-ONLY PROFILE SECURITY VIEW */}
+          {(userRole === 'salesperson' || userRole === 'manager') && (
+            <div className="bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-[32px] border border-slate-100 dark:border-slate-700/80 shadow-xs space-y-4 max-w-3xl">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-4">
+                <div>
+                  <h3 className="font-black text-rose-900 dark:text-white text-base flex items-center gap-2">
+                    <Lock className="w-5 h-5 text-rose-500" /> Staff Security Profile
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Your assigned role permissions and access security parameters
+                  </p>
                 </div>
-              );
-            })}
-          </div>
+                <div className="px-3.5 py-1.5 bg-rose-50 dark:bg-rose-950/50 border border-rose-100 dark:border-rose-900/60 rounded-xl text-xs font-black text-rose-700 dark:text-rose-300">
+                  Assigned Role: {userRole === 'salesperson' ? 'Sales Person' : 'Manager'} (Read-Only)
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 text-xs text-amber-900 dark:text-amber-200 space-y-1">
+                <span className="font-extrabold flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-amber-600" /> Enterprise Access Control Policy:
+                </span>
+                <p className="text-[11px] leading-relaxed text-amber-800 dark:text-amber-300">
+                  User roles are assigned strictly by the Super Administrator or Administrator. Users are not permitted to alter, elevate, or switch their own role permissions.
+                </p>
+              </div>
+
+              <div className="space-y-3 pt-2">
+                <h4 className="font-extrabold text-xs text-slate-700 dark:text-slate-200 uppercase tracking-wider">
+                  Operational Permissions Breakdown
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700">
+                    <span className="font-bold text-slate-900 dark:text-white block mb-1">Sales & POS Access</span>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      {userRole === 'salesperson'
+                        ? 'Full access to POS cash register, recording sales, selecting customers, printing receipts, and viewing personal daily logs.'
+                        : 'Full access to POS terminal, inventory restock, store overhead expenses, and operational sales reports.'}
+                    </p>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700">
+                    <span className="font-bold text-slate-900 dark:text-white block mb-1">Administrative Privileges</span>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      Restricted. Staff user account creation, system configuration, database backup restores, and role security controls require Administrator authorization.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 2. ADMINISTRATOR / SUPER ADMINISTRATOR STAFF MANAGEMENT VIEW */}
+          {(userRole === 'administrator' || userRole === 'super_admin') && (
+            <div className="bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-[32px] border border-slate-100 dark:border-slate-700/80 shadow-xs space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-700 pb-4">
+                <div>
+                  <h3 className="font-black text-rose-900 dark:text-white text-base flex items-center gap-2">
+                    <ShieldCheck className="w-5 h-5 text-rose-500" />
+                    Staff Accounts & Role Management
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {userRole === 'super_admin'
+                      ? 'Super Administrator Access: Complete authority over staff accounts, role assignment, and system permissions.'
+                      : 'Administrator Access: Create staff accounts and assign Sales Person and Manager roles.'}
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setShowAddUserModal(!showAddUserModal)}
+                  className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-2xl shadow-md active:scale-95 transition flex items-center justify-center gap-2 shrink-0"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  Add New Staff Account
+                </button>
+              </div>
+
+              {/* Add Staff Modal / Form */}
+              {showAddUserModal && (
+                <form onSubmit={handleCreateStaffUser} className="p-5 rounded-2xl bg-rose-50/50 dark:bg-slate-900 border border-rose-200 dark:border-slate-700 space-y-4">
+                  <h4 className="font-extrabold text-sm text-rose-900 dark:text-white flex items-center gap-2">
+                    <UserPlus className="w-4 h-4 text-rose-500" /> Create New Staff User Account
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                        Full Name
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={newUserName}
+                        onChange={(e) => setNewUserName(e.target.value)}
+                        placeholder="e.g. John Doe"
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                        Email Address
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        value={newUserEmail}
+                        onChange={(e) => setNewUserEmail(e.target.value)}
+                        placeholder="john@store.com"
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                        Assign Role
+                      </label>
+                      <select
+                        value={newUserRole}
+                        onChange={(e) => setNewUserRole(e.target.value as UserRole)}
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-extrabold outline-none"
+                      >
+                        <option value="salesperson">Sales Person</option>
+                        <option value="manager">Manager</option>
+                        {userRole === 'super_admin' && (
+                          <>
+                            <option value="administrator">Administrator</option>
+                            <option value="super_admin">Super Administrator</option>
+                          </>
+                        )}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddUserModal(false)}
+                      className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2 bg-rose-600 text-white font-bold text-xs rounded-xl shadow-md hover:bg-rose-700"
+                    >
+                      Save Account
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Staff Accounts Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-700 text-slate-400 font-bold uppercase tracking-wider">
+                      <th className="p-3.5">Staff Name & Email</th>
+                      <th className="p-3.5">Assigned Role</th>
+                      <th className="p-3.5">Status</th>
+                      <th className="p-3.5 text-right">Security Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
+                    {staffUsers.map((usr) => {
+                      const isSuperAdminUser = usr.role === 'super_admin';
+                      const isAdminUser = usr.role === 'administrator';
+                      const isLockedForCurrentAdmin =
+                        userRole === 'administrator' && (isSuperAdminUser || isAdminUser);
+
+                      return (
+                        <tr key={usr.id} className="hover:bg-rose-50/20 dark:hover:bg-slate-700/30 transition">
+                          <td className="p-3.5">
+                            <span className="font-extrabold text-slate-900 dark:text-white block">
+                              {usr.name}
+                            </span>
+                            <span className="text-[11px] text-slate-400">{usr.email}</span>
+                          </td>
+
+                          <td className="p-3.5">
+                            {isLockedForCurrentAdmin ? (
+                              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-extrabold text-[11px]">
+                                <Lock className="w-3 h-3 text-slate-400" />
+                                {usr.role === 'super_admin' ? 'Super Admin' : 'Administrator'}
+                              </span>
+                            ) : (
+                              <select
+                                value={usr.role}
+                                onChange={(e) => handleChangeStaffRole(usr.id, e.target.value as UserRole)}
+                                className="px-3 py-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs text-slate-800 dark:text-white outline-none cursor-pointer"
+                              >
+                                <option value="salesperson">Sales Person</option>
+                                <option value="manager">Manager</option>
+                                {userRole === 'super_admin' && (
+                                  <>
+                                    <option value="administrator">Administrator</option>
+                                    <option value="super_admin">Super Administrator</option>
+                                  </>
+                                )}
+                              </select>
+                            )}
+                          </td>
+
+                          <td className="p-3.5">
+                            <span
+                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
+                                usr.status === 'active'
+                                  ? 'bg-teal-50 text-teal-700 border border-teal-200'
+                                  : 'bg-slate-100 text-slate-500 border border-slate-300'
+                              }`}
+                            >
+                              {usr.status}
+                            </span>
+                          </td>
+
+                          <td className="p-3.5 text-right space-x-2">
+                            <button
+                              onClick={() => handleToggleStaffStatus(usr.id)}
+                              disabled={isLockedForCurrentAdmin}
+                              className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg font-bold text-[11px] disabled:opacity-40"
+                              title={usr.status === 'active' ? 'Disable Account' : 'Enable Account'}
+                            >
+                              {usr.status === 'active' ? 'Disable' : 'Enable'}
+                            </button>
+
+                            <button
+                              onClick={() => alert(`Password reset email sent to ${usr.email}`)}
+                              className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg font-bold text-[11px]"
+                              title="Reset Password"
+                            >
+                              Reset Pass
+                            </button>
+
+                            {userRole === 'super_admin' && !isSuperAdminUser && (
+                              <button
+                                onClick={() => handleDeleteStaffUser(usr.id)}
+                                className="p-1 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg"
+                                title="Delete Account"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

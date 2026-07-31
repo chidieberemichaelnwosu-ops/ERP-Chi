@@ -85,17 +85,16 @@ export const MoreMenu: React.FC = () => {
         </div>
 
         <div className="text-right">
-          <span className="text-[10px] text-slate-400 block font-bold uppercase">Role Switcher</span>
-          <select
-            value={userRole}
-            onChange={(e) => setUserRole(e.target.value as any)}
-            className="mt-1 px-3 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-extrabold text-slate-700 dark:text-slate-200 outline-none"
-          >
-            <option value="super_admin">Super Administrator</option>
-            <option value="administrator">Administrator</option>
-            <option value="manager">Manager</option>
-            <option value="salesperson">Sales Person</option>
-          </select>
+          <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider mb-1">Assigned Role</span>
+          <span className="px-3 py-1 bg-rose-50 dark:bg-slate-900 border border-rose-100 dark:border-slate-700 rounded-xl text-xs font-black text-rose-700 dark:text-rose-300 inline-block">
+            {userRole === 'salesperson'
+              ? 'Sales Person'
+              : userRole === 'manager'
+              ? 'Manager'
+              : userRole === 'administrator'
+              ? 'Administrator'
+              : 'Super Administrator'}
+          </span>
         </div>
       </div>
 
