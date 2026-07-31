@@ -44,6 +44,9 @@ export const SettingsView: React.FC = () => {
     settings,
     updateSettings,
     userRole,
+    primaryUserRole,
+    setUserRole,
+    setPrimaryUserRole,
     auditLogs,
     exportDatabaseJSON,
     importDatabaseJSON,
@@ -475,7 +478,7 @@ export const SettingsView: React.FC = () => {
       {activeTab === 'roles' && (
         <div className="space-y-6">
           {/* 1. SALES PERSON OR MANAGER READ-ONLY PROFILE SECURITY VIEW */}
-          {(userRole === 'salesperson' || userRole === 'manager') && (
+          {(primaryUserRole === 'salesperson' || primaryUserRole === 'manager') && (
             <div className="bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-[32px] border border-slate-100 dark:border-slate-700/80 shadow-xs space-y-4 max-w-3xl">
               <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-4">
                 <div>
@@ -487,7 +490,7 @@ export const SettingsView: React.FC = () => {
                   </p>
                 </div>
                 <div className="px-3.5 py-1.5 bg-rose-50 dark:bg-rose-950/50 border border-rose-100 dark:border-rose-900/60 rounded-xl text-xs font-black text-rose-700 dark:text-rose-300">
-                  Assigned Role: {userRole === 'salesperson' ? 'Sales Person' : 'Manager'} (Read-Only)
+                  Assigned Role: {primaryUserRole === 'salesperson' ? 'Sales Person' : 'Manager'} (Read-Only)
                 </div>
               </div>
 
@@ -496,7 +499,7 @@ export const SettingsView: React.FC = () => {
                   <AlertCircle className="w-4 h-4 text-amber-600" /> Enterprise Access Control Policy:
                 </span>
                 <p className="text-[11px] leading-relaxed text-amber-800 dark:text-amber-300">
-                  User roles are assigned strictly by the Super Administrator or Administrator. Users are not permitted to alter, elevate, or switch their own role permissions.
+                  User roles are assigned strictly by the Super Administrator or Administrator. Managers and Sales Persons cannot switch roles or alter user permissions.
                 </p>
               </div>
 
@@ -508,7 +511,7 @@ export const SettingsView: React.FC = () => {
                   <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700">
                     <span className="font-bold text-slate-900 dark:text-white block mb-1">Sales & POS Access</span>
                     <p className="text-[11px] text-slate-500 leading-relaxed">
-                      {userRole === 'salesperson'
+                      {primaryUserRole === 'salesperson'
                         ? 'Full access to POS cash register, recording sales, selecting customers, printing receipts, and viewing personal daily logs.'
                         : 'Full access to POS terminal, inventory restock, store overhead expenses, and operational sales reports.'}
                     </p>
@@ -516,7 +519,7 @@ export const SettingsView: React.FC = () => {
                   <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700">
                     <span className="font-bold text-slate-900 dark:text-white block mb-1">Administrative Privileges</span>
                     <p className="text-[11px] text-slate-500 leading-relaxed">
-                      Restricted. Staff user account creation, system configuration, database backup restores, and role security controls require Administrator authorization.
+                      Restricted. Role switching, staff user creation, system configuration, database backup restores, and security controls require Administrator authorization.
                     </p>
                   </div>
                 </div>
@@ -524,30 +527,109 @@ export const SettingsView: React.FC = () => {
             </div>
           )}
 
-          {/* 2. ADMINISTRATOR / SUPER ADMINISTRATOR STAFF MANAGEMENT VIEW */}
-          {(userRole === 'administrator' || userRole === 'super_admin') && (
-            <div className="bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-[32px] border border-slate-100 dark:border-slate-700/80 shadow-xs space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-700 pb-4">
-                <div>
-                  <h3 className="font-black text-rose-900 dark:text-white text-base flex items-center gap-2">
-                    <ShieldCheck className="w-5 h-5 text-rose-500" />
-                    Staff Accounts & Role Management
-                  </h3>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    {userRole === 'super_admin'
-                      ? 'Super Administrator Access: Complete authority over staff accounts, role assignment, and system permissions.'
-                      : 'Administrator Access: Create staff accounts and assign Sales Person and Manager roles.'}
-                  </p>
+          {/* 2. ADMINISTRATOR / SUPER ADMINISTRATOR AUTHORIZED ROLE TESTING & MANAGEMENT */}
+          {(primaryUserRole === 'administrator' || primaryUserRole === 'super_admin') && (
+            <>
+              {/* Role Switcher Card for Operational Support & Testing */}
+              <div className="bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-[32px] border border-slate-100 dark:border-slate-700/80 shadow-xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-700 pb-3">
+                  <div>
+                    <h3 className="font-extrabold text-rose-900 dark:text-white text-base flex items-center gap-2">
+                      <UserCheck className="w-5 h-5 text-rose-500" />
+                      Switch Operational Role (Interface & Permission Testing)
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {primaryUserRole === 'super_admin'
+                        ? 'Super Administrators can switch between all 4 roles to test interfaces and operational workflows.'
+                        : 'Administrators can switch between Administrator, Manager, and Sales Person roles for operational support.'}
+                    </p>
+                  </div>
+
+                  {userRole !== primaryUserRole && (
+                    <div className="px-3.5 py-1.5 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 text-amber-800 dark:text-amber-300 rounded-xl text-xs font-bold flex items-center gap-2">
+                      <span>Testing Mode: <strong className="uppercase">{userRole}</strong></span>
+                      <button
+                        onClick={() => setUserRole(primaryUserRole, 'Returned to Primary Identity')}
+                        className="px-2 py-0.5 bg-rose-600 text-white rounded text-[10px] font-extrabold hover:bg-rose-700"
+                      >
+                        Reset to {primaryUserRole === 'super_admin' ? 'Super Admin' : 'Admin'}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
-                <button
-                  onClick={() => setShowAddUserModal(!showAddUserModal)}
-                  className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-2xl shadow-md active:scale-95 transition flex items-center justify-center gap-2 shrink-0"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  Add New Staff Account
-                </button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
+                  {[
+                    ...(primaryUserRole === 'super_admin'
+                      ? [
+                          {
+                            id: 'super_admin',
+                            title: 'Super Administrator',
+                            desc: 'Unrestricted full access, user management, role assignments, system backups, and full audit logs.',
+                          },
+                        ]
+                      : []),
+                    {
+                      id: 'administrator',
+                      title: 'Administrator',
+                      desc: 'Full operational access, staff creation, inventory management, store settings, and report exports.',
+                    },
+                    {
+                      id: 'manager',
+                      title: 'Manager',
+                      desc: 'Sales processing, inventory stock control, supplier purchases, and operational reporting.',
+                    },
+                    {
+                      id: 'salesperson',
+                      title: 'Sales Person',
+                      desc: 'Fast POS sales entry, customer search, receipt printing, and daily cashier summary.',
+                    },
+                  ].map((r) => {
+                    const isSelected = userRole === r.id;
+                    return (
+                      <div
+                        key={r.id}
+                        onClick={() => setUserRole(r.id as any, 'Settings Role Switcher Panel')}
+                        className={`p-5 rounded-[24px] border-2 cursor-pointer transition-all ${
+                          isSelected
+                            ? 'border-rose-500 bg-rose-50 dark:bg-rose-950/40 text-rose-900 dark:text-rose-300 shadow-md shadow-rose-100 dark:shadow-none scale-[1.02]'
+                            : 'border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-rose-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-extrabold text-sm">{r.title}</h4>
+                          {isSelected && <Check className="w-4 h-4 text-rose-500 stroke-[3]" />}
+                        </div>
+                        <p className="text-[11px] mt-2 opacity-80 font-medium leading-relaxed">{r.desc}</p>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
+
+              {/* Staff Accounts & Role Management Table */}
+              <div className="bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-[32px] border border-slate-100 dark:border-slate-700/80 shadow-xs space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-700 pb-4">
+                  <div>
+                    <h3 className="font-black text-rose-900 dark:text-white text-base flex items-center gap-2">
+                      <ShieldCheck className="w-5 h-5 text-rose-500" />
+                      Staff Accounts & Role Assignments
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {primaryUserRole === 'super_admin'
+                        ? 'Super Administrator Access: Full authority over staff accounts, role assignment, and system permissions.'
+                        : 'Administrator Access: Create staff accounts and assign Sales Person or Manager roles.'}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => setShowAddUserModal(!showAddUserModal)}
+                    className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-2xl shadow-md active:scale-95 transition flex items-center justify-center gap-2 shrink-0"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    Add New Staff Account
+                  </button>
+                </div>
 
               {/* Add Staff Modal / Form */}
               {showAddUserModal && (
@@ -636,7 +718,7 @@ export const SettingsView: React.FC = () => {
                       const isSuperAdminUser = usr.role === 'super_admin';
                       const isAdminUser = usr.role === 'administrator';
                       const isLockedForCurrentAdmin =
-                        userRole === 'administrator' && (isSuperAdminUser || isAdminUser);
+                        primaryUserRole === 'administrator' && (isSuperAdminUser || isAdminUser);
 
                       return (
                         <tr key={usr.id} className="hover:bg-rose-50/20 dark:hover:bg-slate-700/30 transition">
@@ -661,7 +743,7 @@ export const SettingsView: React.FC = () => {
                               >
                                 <option value="salesperson">Sales Person</option>
                                 <option value="manager">Manager</option>
-                                {userRole === 'super_admin' && (
+                                {primaryUserRole === 'super_admin' && (
                                   <>
                                     <option value="administrator">Administrator</option>
                                     <option value="super_admin">Super Administrator</option>
@@ -701,7 +783,7 @@ export const SettingsView: React.FC = () => {
                               Reset Pass
                             </button>
 
-                            {userRole === 'super_admin' && !isSuperAdminUser && (
+                            {primaryUserRole === 'super_admin' && !isSuperAdminUser && (
                               <button
                                 onClick={() => handleDeleteStaffUser(usr.id)}
                                 className="p-1 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg"
@@ -718,7 +800,8 @@ export const SettingsView: React.FC = () => {
                 </table>
               </div>
             </div>
-          )}
+          </>
+        )}
         </div>
       )}
 

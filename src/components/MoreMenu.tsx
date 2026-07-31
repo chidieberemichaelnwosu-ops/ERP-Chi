@@ -15,7 +15,9 @@ import {
 } from 'lucide-react';
 
 export const MoreMenu: React.FC = () => {
-  const { setActiveTab, userRole, userName, setUserRole } = useApp();
+  const { setActiveTab, userRole, primaryUserRole, userName, setUserRole } = useApp();
+
+  const canSwitchRoles = primaryUserRole === 'super_admin' || primaryUserRole === 'administrator';
 
   const allMenuItems = [
     {
@@ -85,16 +87,33 @@ export const MoreMenu: React.FC = () => {
         </div>
 
         <div className="text-right">
-          <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider mb-1">Assigned Role</span>
-          <span className="px-3 py-1 bg-rose-50 dark:bg-slate-900 border border-rose-100 dark:border-slate-700 rounded-xl text-xs font-black text-rose-700 dark:text-rose-300 inline-block">
-            {userRole === 'salesperson'
-              ? 'Sales Person'
-              : userRole === 'manager'
-              ? 'Manager'
-              : userRole === 'administrator'
-              ? 'Administrator'
-              : 'Super Administrator'}
+          <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider mb-1">
+            {canSwitchRoles ? 'Switch Active Role' : 'Assigned Role'}
           </span>
+          {canSwitchRoles ? (
+            <select
+              value={userRole}
+              onChange={(e) => setUserRole(e.target.value as any, 'More Menu Role Switcher')}
+              className="px-3 py-1 bg-rose-50 dark:bg-slate-900 border border-rose-200 dark:border-slate-700 rounded-xl text-xs font-black text-rose-800 dark:text-rose-200 outline-none cursor-pointer"
+            >
+              {primaryUserRole === 'super_admin' && (
+                <option value="super_admin">Super Administrator</option>
+              )}
+              <option value="administrator">Administrator</option>
+              <option value="manager">Manager</option>
+              <option value="salesperson">Sales Person</option>
+            </select>
+          ) : (
+            <span className="px-3 py-1 bg-rose-50 dark:bg-slate-900 border border-rose-100 dark:border-slate-700 rounded-xl text-xs font-black text-rose-700 dark:text-rose-300 inline-block">
+              {userRole === 'salesperson'
+                ? 'Sales Person'
+                : userRole === 'manager'
+                ? 'Manager'
+                : userRole === 'administrator'
+                ? 'Administrator'
+                : 'Super Administrator'}
+            </span>
+          )}
         </div>
       </div>
 

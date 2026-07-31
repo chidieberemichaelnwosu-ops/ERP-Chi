@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { UserRole } from '../types';
 import { formatCurrency } from '../services/export';
 import {
   Sparkles,
@@ -18,6 +19,7 @@ export const Header: React.FC = () => {
   const {
     settings,
     userRole,
+    primaryUserRole,
     setUserRole,
     isOffline,
     isSyncing,
@@ -29,7 +31,26 @@ export const Header: React.FC = () => {
     updateSettings,
   } = useApp();
 
+  const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
   const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const canSwitchRoles = primaryUserRole === 'super_admin' || primaryUserRole === 'administrator';
+
+  const availableSwitchRoles: { id: UserRole; label: string }[] =
+    primaryUserRole === 'super_admin'
+      ? [
+          { id: 'super_admin', label: 'Super Administrator' },
+          { id: 'administrator', label: 'Administrator' },
+          { id: 'manager', label: 'Manager' },
+          { id: 'salesperson', label: 'Sales Person' },
+        ]
+      : primaryUserRole === 'administrator'
+      ? [
+          { id: 'administrator', label: 'Administrator' },
+          { id: 'manager', label: 'Manager' },
+          { id: 'salesperson', label: 'Sales Person' },
+        ]
+      : [];
 
   return (
     <header className="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-100 dark:border-slate-800 shadow-xs px-4 sm:px-8 py-3 transition-colors">
@@ -90,20 +111,90 @@ export const Header: React.FC = () => {
             )}
           </div>
 
-          {/* Read-Only Role Indicator */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-rose-50 dark:bg-slate-800 border border-rose-100 dark:border-slate-700 text-rose-700 dark:text-rose-300 text-xs font-extrabold select-none">
-            <UserCheck className="w-3.5 h-3.5 text-rose-500" />
-            <span className="hidden sm:inline text-[10px] text-slate-400 font-bold uppercase mr-0.5">Role:</span>
-            <span>
-              {userRole === 'salesperson'
-                ? 'Sales Person'
-                : userRole === 'manager'
-                ? 'Manager'
-                : userRole === 'administrator'
-                ? 'Administrator'
-                : 'Super Admin'}
-            </span>
-          </div>
+          {/* Role Indicator / Switcher */}
+          {canSwitchRoles ? (
+            <div className="relative">
+              <button
+                onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-rose-50 dark:bg-pink-950/40 border border-rose-200 dark:border-pink-900/60 text-rose-800 dark:text-rose-200 text-xs font-extrabold hover:bg-rose-100 transition shadow-xs"
+                title="Switch Active Operational Role (Testing / Support)"
+              >
+                <UserCheck className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                <span className="hidden sm:inline text-[10px] text-slate-400 font-bold uppercase mr-0.5">
+                  Role:
+                </span>
+                <span className="truncate">
+                  {userRole === 'salesperson'
+                    ? 'Sales Person'
+                    : userRole === 'manager'
+                    ? 'Manager'
+                    : userRole === 'administrator'
+                    ? 'Administrator'
+                    : 'Super Admin'}
+                </span>
+                {userRole !== primaryUserRole && (
+                  <span className="px-1.5 py-0.2 bg-amber-500 text-white rounded text-[9px] font-black uppercase">
+                    Test Mode
+                  </span>
+                )}
+                <ChevronDown className="w-3 h-3 text-rose-500 shrink-0" />
+              </button>
+
+              {isRoleDropdownOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setIsRoleDropdownOpen(false)}
+                  />
+                  <div className="absolute right-0 top-full mt-2 w-52 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-700 py-2 z-50">
+                    <div className="px-3 py-1 text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                      Switch Role (Authorized)
+                    </div>
+                    <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                      {availableSwitchRoles.map((r) => {
+                        const isSelected = userRole === r.id;
+                        return (
+                          <button
+                            key={r.id}
+                            onClick={() => {
+                              setUserRole(r.id, 'Role Switcher in Header');
+                              setIsRoleDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-3.5 py-2 text-xs font-bold transition flex items-center justify-between ${
+                              isSelected
+                                ? 'bg-rose-50 dark:bg-slate-700 text-rose-700 dark:text-rose-300'
+                                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                            }`}
+                          >
+                            <span>{r.label}</span>
+                            {isSelected && (
+                              <span className="w-2 h-2 rounded-full bg-rose-500" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-rose-50 dark:bg-slate-800 border border-rose-100 dark:border-slate-700 text-rose-700 dark:text-rose-300 text-xs font-extrabold select-none">
+              <UserCheck className="w-3.5 h-3.5 text-rose-500" />
+              <span className="hidden sm:inline text-[10px] text-slate-400 font-bold uppercase mr-0.5">
+                Role:
+              </span>
+              <span>
+                {userRole === 'salesperson'
+                  ? 'Sales Person'
+                  : userRole === 'manager'
+                  ? 'Manager'
+                  : userRole === 'administrator'
+                  ? 'Administrator'
+                  : 'Super Admin'}
+              </span>
+            </div>
+          )}
 
           {/* Notifications Trigger */}
           <button

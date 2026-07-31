@@ -41,6 +41,7 @@ interface AppContextType {
   categories: ProductCategory[];
   expenseCategories: ExpenseCategory[];
   userRole: UserRole;
+  primaryUserRole: UserRole;
   userName: string;
   auditLogs: AuditLog[];
   notifications: NotificationItem[];
@@ -59,7 +60,8 @@ interface AppContextType {
   setIsNotificationOpen: (open: boolean) => void;
 
   // Actions
-  setUserRole: (role: UserRole) => void;
+  setUserRole: (role: UserRole, reason?: string) => void;
+  setPrimaryUserRole: (role: UserRole) => void;
   updateSettings: (newSettings: Partial<BusinessSettings>) => void;
 
   // Product Actions
@@ -184,8 +186,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     loadFromStorage('glow_erp_notifications', [])
   );
 
-  const [userRole, setUserRoleState] = useState<UserRole>('administrator');
-  const [userName, setUserName] = useState<string>('Store Owner');
+  const [primaryUserRole, setPrimaryUserRoleState] = useState<UserRole>(() => {
+    return loadFromStorage<UserRole>('glow_erp_primary_user_role', 'super_admin');
+  });
+  const [userRole, setUserRoleState] = useState<UserRole>(() => {
+    return loadFromStorage<UserRole>('glow_erp_user_role', 'super_admin');
+  });
+  const [userName, setUserName] = useState<string>(() => {
+    const role = loadFromStorage<UserRole>('glow_erp_user_role', 'super_admin');
+    if (role === 'super_admin') return 'Chidi (Super Admin)';
+    if (role === 'administrator') return 'Amaka (Store Admin)';
+    if (role === 'manager') return 'Kelechi (Store Manager)';
+    return 'Blessing (Sales Person)';
+  });
+
+  // Save roles to storage
+  useEffect(() => saveToStorage('glow_erp_primary_user_role', primaryUserRole), [primaryUserRole]);
+  useEffect(() => saveToStorage('glow_erp_user_role', userRole), [userRole]);
 
   // UI state
   const [activeTab, setActiveTab] = useState<string>('dashboard');
@@ -264,13 +281,49 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [products]);
 
-  const setUserRole = (role: UserRole) => {
-    setUserRoleState(role);
-    if (role === 'administrator') setUserName('Store Owner');
-    else if (role === 'manager') setUserName('Store Manager');
-    else setUserName('Chioma (Salesperson)');
+  const setUserRole = (targetRole: UserRole, reason?: string) => {
+    // Security enforcement: Managers and Sales Persons cannot switch roles
+    if (primaryUserRole === 'salesperson' || primaryUserRole === 'manager') {
+      alert('Role switching is restricted. Sales Persons and Managers are not authorized to switch roles.');
+      return;
+    }
 
-    logAudit('Role Switch', `Switched active user role to ${role}`);
+    // Security enforcement: Administrator cannot switch to or impersonate Super Administrator
+    if (primaryUserRole === 'administrator' && targetRole === 'super_admin') {
+      alert('Security Alert: Administrators cannot switch to or impersonate the Super Administrator role.');
+      return;
+    }
+
+    const previousRole = userRole;
+    setUserRoleState(targetRole);
+
+    let newName = userName;
+    if (targetRole === 'super_admin') newName = 'Chidi (Super Admin)';
+    else if (targetRole === 'administrator') newName = 'Amaka (Store Admin)';
+    else if (targetRole === 'manager') newName = 'Kelechi (Store Manager)';
+    else if (targetRole === 'salesperson') newName = 'Blessing (Sales Person)';
+    setUserName(newName);
+
+    // Record audit log entry: User performing action, original role, switched role, timestamp, reason
+    const reasonDetail = reason ? ` (Reason: ${reason})` : '';
+    logAudit(
+      'Role Switch',
+      `Switched active role from ${previousRole} to ${targetRole}${reasonDetail}`
+    );
+  };
+
+  const setPrimaryUserRole = (targetRole: UserRole) => {
+    setPrimaryUserRoleState(targetRole);
+    setUserRoleState(targetRole);
+
+    let newName = userName;
+    if (targetRole === 'super_admin') newName = 'Chidi (Super Admin)';
+    else if (targetRole === 'administrator') newName = 'Amaka (Store Admin)';
+    else if (targetRole === 'manager') newName = 'Kelechi (Store Manager)';
+    else if (targetRole === 'salesperson') newName = 'Blessing (Sales Person)';
+    setUserName(newName);
+
+    logAudit('Primary Identity Change', `Primary account identity changed to ${targetRole}`);
   };
 
   const logAudit = (action: string, details: string) => {
@@ -860,6 +913,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         categories,
         expenseCategories,
         userRole,
+        primaryUserRole,
         userName,
         auditLogs,
         notifications,
@@ -875,6 +929,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         isNotificationOpen,
         setIsNotificationOpen,
         setUserRole,
+        setPrimaryUserRole,
         updateSettings,
         addProduct,
         updateProduct,
