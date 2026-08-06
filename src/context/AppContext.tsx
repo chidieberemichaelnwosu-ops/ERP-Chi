@@ -30,6 +30,7 @@ import {
 } from '../services/storage';
 import { findBestMatchingProduct } from '../utils/productMatching';
 import { supabaseSignOut } from '../lib/supabase';
+import { supabase } from '../supabaseClient';
 
 const INITIAL_USERS: AppUser[] = [
   {
@@ -346,7 +347,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Launch Splash Screen & Authentication Session Guard
   useEffect(() => {
-    const timer = setTimeout(() => {
+    const checkSessionAndInit = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          setCurrentRoute('login');
+          return;
+        }
+      } catch (err) {
+        console.warn('Session verification exception:', err);
+      }
+
       const activeUserId = loadFromStorage<string | null>('glow_erp_active_user_id', null);
       if (activeUserId) {
         const foundUser = appUsers.find((u) => u.id === activeUserId);
@@ -376,9 +387,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           }
         }
       }
-      // If no active session saved, default to Login page
+
+      // If Supabase session exists but no specific active local user record matched:
+      const defaultActiveUser = appUsers.find((u) => u.status === 'active') || appUsers[0];
+      if (defaultActiveUser) {
+        setCurrentUser(defaultActiveUser);
+        setUserName(defaultActiveUser.fullName);
+        setUserRoleState(defaultActiveUser.role);
+        setPrimaryUserRoleState(defaultActiveUser.role);
+        setCurrentRoute('app');
+        return;
+      }
+
+      // Default fallback to Login
       setCurrentRoute('login');
-    }, 2000);
+    };
+
+    const timer = setTimeout(() => {
+      checkSessionAndInit();
+    }, 1500);
 
     return () => clearTimeout(timer);
   }, []);

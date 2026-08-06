@@ -1,34 +1,35 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { supabase as exportedSupabase } from '../supabaseClient';
 
-// Get Supabase credentials from Env or localStorage
+// Get Supabase credentials from Env or localStorage or default configured client
 export function getSupabaseCredentials() {
-  const url = import.meta.env.VITE_SUPABASE_URL || localStorage.getItem('glow_erp_supabase_url') || '';
-  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || localStorage.getItem('glow_erp_supabase_anon_key') || '';
+  const url = import.meta.env.VITE_SUPABASE_URL || localStorage.getItem('glow_erp_supabase_url') || 'https://vaftpibexvrxxmtipxdg.supabase.co';
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || localStorage.getItem('glow_erp_supabase_anon_key') || 'sb_publishable_nqnuirmQu2pphH2r3yXZTw_HZ4_Elrq';
   return { url, anonKey };
 }
 
 export function isSupabaseConfigured(): boolean {
-  const { url, anonKey } = getSupabaseCredentials();
-  return Boolean(url && anonKey && url.startsWith('http'));
+  return true;
 }
 
 let supabaseInstance: SupabaseClient | null = null;
 
 export function getSupabase(): SupabaseClient | null {
-  if (!isSupabaseConfigured()) {
-    return null;
+  const customUrl = localStorage.getItem('glow_erp_supabase_url');
+  const customKey = localStorage.getItem('glow_erp_supabase_anon_key');
+  if (customUrl && customKey) {
+    if (!supabaseInstance) {
+      supabaseInstance = createClient(customUrl, customKey, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+        },
+      });
+    }
+    return supabaseInstance;
   }
-  if (!supabaseInstance) {
-    const { url, anonKey } = getSupabaseCredentials();
-    supabaseInstance = createClient(url, anonKey, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-      },
-    });
-  }
-  return supabaseInstance;
+  return exportedSupabase as SupabaseClient;
 }
 
 export function resetSupabaseClient() {

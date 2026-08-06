@@ -46,8 +46,16 @@ export const SignInPage: React.FC<SignInPageProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Restore remembered email
+  // Restore remembered email or pre-fill email from signup
   useEffect(() => {
+    const signupEmail = sessionStorage.getItem('signup_success_email');
+    if (signupEmail) {
+      setEmail(signupEmail);
+      setSuccessMsg('Your account has been created. Please check your email and verify your address before logging in.');
+      sessionStorage.removeItem('signup_success_email');
+      return;
+    }
+
     const savedEmail = localStorage.getItem('glow_erp_remember_email');
     if (savedEmail) {
       setEmail(savedEmail);
@@ -74,33 +82,37 @@ export const SignInPage: React.FC<SignInPageProps> = ({
         localStorage.removeItem('glow_erp_remember_email');
       }
 
-      // 1. Supabase Auth Sign In (if real project is connected)
-      let supError: string | null = null;
-      try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password: password,
-        });
+      // 1. Supabase Auth Sign In
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password,
+      });
 
-        if (error) {
-          supError = error.message;
-        }
-      } catch (err: any) {
-        supError = err?.message || 'Authentication failed';
+      if (error) {
+        setErrorMsg(error.message || 'Incorrect email or password.');
+        setIsLoading(false);
+        return;
+      }
+
+      if (!data?.session) {
+        setErrorMsg('Please check your email and confirm your account before logging in.');
+        setIsLoading(false);
+        return;
       }
 
       // 2. Local App Context Login & Status Sync
       const res = loginUser(email.trim(), password);
 
       if (!res.success) {
-        setErrorMsg(supError || res.message);
+        setErrorMsg(res.message);
       } else {
         setSuccessMsg('Logged in successfully!');
         if (logoutNoticeMsg) setLogoutNoticeMsg(null);
 
         setTimeout(() => {
           onLoginSuccess();
-        }, 400);
+          window.location.href = '/';
+        }, 300);
       }
     } catch (err: any) {
       setErrorMsg(err?.message || 'Incorrect email or password. Please verify your credentials.');

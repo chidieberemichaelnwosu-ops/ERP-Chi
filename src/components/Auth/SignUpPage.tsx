@@ -57,10 +57,12 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({
 
   // Feedback Messages
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [infoMsg, setInfoMsg] = useState<string | null>(null);
 
   const handleSignUpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+    setInfoMsg(null);
 
     // Validation
     if (
@@ -102,17 +104,15 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({
 
     try {
       // 1. Supabase Auth Sign Up
-      try {
-        const { data, error } = await supabase.auth.signUp({
-          email: email.trim(),
-          password: password,
-        });
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password: password,
+      });
 
-        if (error) {
-          console.warn('Supabase Auth Sign Up Notice:', error.message);
-        }
-      } catch (err: any) {
-        console.warn('Supabase Auth Sign Up Exception:', err);
+      if (error) {
+        setErrorMsg(error.message || 'Registration failed.');
+        setIsLoading(false);
+        return;
       }
 
       // 2. Local State Registration
@@ -135,15 +135,9 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({
         return;
       }
 
-      const pendingData = {
-        fullName: fullName.trim(),
-        email: email.trim(),
-        requestedRole,
-        businessName: businessName.trim(),
-        registrationDate: new Date().toISOString(),
-      };
-
-      onSignUpSuccess(pendingData);
+      // 3. Save signup email for pre-filling Sign In form and redirect without auto-login
+      sessionStorage.setItem('signup_success_email', email.trim());
+      onNavigateToSignIn();
     } catch (err: any) {
       setErrorMsg(err?.message || 'Failed to process registration. Please check your connection.');
     } finally {
@@ -266,6 +260,13 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({
               Register your profile and store branch details to request system access.
             </p>
           </div>
+
+          {infoMsg && (
+            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold flex items-start gap-2.5 animate-in fade-in shadow-sm">
+              <CheckCircle2 className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <span className="leading-relaxed">{infoMsg}</span>
+            </div>
+          )}
 
           {errorMsg && (
             <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold flex items-start gap-2.5 animate-in fade-in">

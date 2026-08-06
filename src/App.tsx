@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
+import { supabase } from './supabaseClient';
 import { Header } from './components/Header';
 import { BottomNav } from './components/BottomNav';
 import { Dashboard } from './components/Dashboard';
@@ -89,6 +90,19 @@ const AppNavigationGuard: React.FC = () => {
     pendingUserReg,
     setPendingUserReg,
   } = useApp();
+
+  // Protect private pages with supabase.auth.getSession()
+  useEffect(() => {
+    if (currentRoute === 'app') {
+      supabase.auth.getSession().then(({ data: { session }, error }) => {
+        if (error || !session) {
+          setCurrentRoute('login');
+        }
+      }).catch(() => {
+        setCurrentRoute('login');
+      });
+    }
+  }, [currentRoute, setCurrentRoute]);
 
   // 1. Splash Screen
   if (currentRoute === 'splash') {
