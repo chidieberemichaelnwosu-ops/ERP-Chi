@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { UserRole } from '../../types';
-import { supabaseSignUp, isSupabaseConfigured } from '../../lib/supabase';
+import { supabase } from '../../supabaseClient';
 import {
   Lock,
   Mail,
@@ -101,23 +101,22 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({
     setIsLoading(true);
 
     try {
-      // 1. Supabase Auth Sign Up if configured
-      if (isSupabaseConfigured()) {
-        const supRes = await supabaseSignUp({
+      // 1. Supabase Auth Sign Up
+      try {
+        const { data, error } = await supabase.auth.signUp({
           email: email.trim(),
-          password,
-          fullName: fullName.trim(),
-          phone: phone.trim(),
-          requestedRole,
-          branch: businessName.trim(),
+          password: password,
         });
-        if (!supRes.success) {
-          console.warn('Supabase SignUp note:', supRes.message);
+
+        if (error) {
+          console.warn('Supabase Auth Sign Up Notice:', error.message);
         }
+      } catch (err: any) {
+        console.warn('Supabase Auth Sign Up Exception:', err);
       }
 
       // 2. Local State Registration
-      const res = registerUser({
+      const regRes = registerUser({
         fullName: fullName.trim(),
         phone: phone.trim(),
         email: email.trim(),
@@ -130,20 +129,23 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({
         requestedRole,
       });
 
-      if (!res.success) {
-        setErrorMsg(res.message);
-      } else {
-        const pendingData = {
-          fullName: fullName.trim(),
-          email: email.trim(),
-          requestedRole,
-          businessName: businessName.trim(),
-          registrationDate: new Date().toISOString(),
-        };
-        onSignUpSuccess(pendingData);
+      if (!regRes.success) {
+        setErrorMsg(regRes.message);
+        setIsLoading(false);
+        return;
       }
+
+      const pendingData = {
+        fullName: fullName.trim(),
+        email: email.trim(),
+        requestedRole,
+        businessName: businessName.trim(),
+        registrationDate: new Date().toISOString(),
+      };
+
+      onSignUpSuccess(pendingData);
     } catch (err: any) {
-      setErrorMsg('Failed to process registration. Please check your connection.');
+      setErrorMsg(err?.message || 'Failed to process registration. Please check your connection.');
     } finally {
       setIsLoading(false);
     }

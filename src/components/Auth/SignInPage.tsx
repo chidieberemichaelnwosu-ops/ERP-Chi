@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
-import { supabaseSignIn, isSupabaseConfigured } from '../../lib/supabase';
+import { supabase } from '../../supabaseClient';
 import {
   Lock,
   Mail,
@@ -74,28 +74,36 @@ export const SignInPage: React.FC<SignInPageProps> = ({
         localStorage.removeItem('glow_erp_remember_email');
       }
 
-      // Try Supabase Auth if configured
-      if (isSupabaseConfigured()) {
-        const supRes = await supabaseSignIn(email.trim(), password);
-        if (!supRes.success) {
-          console.warn('Supabase SignIn note:', supRes.message);
+      // 1. Supabase Auth Sign In (if real project is connected)
+      let supError: string | null = null;
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password: password,
+        });
+
+        if (error) {
+          supError = error.message;
         }
+      } catch (err: any) {
+        supError = err?.message || 'Authentication failed';
       }
 
-      // Local App Context Login & Status Check
+      // 2. Local App Context Login & Status Sync
       const res = loginUser(email.trim(), password);
 
       if (!res.success) {
-        setErrorMsg(res.message);
+        setErrorMsg(supError || res.message);
       } else {
         setSuccessMsg('Logged in successfully!');
         if (logoutNoticeMsg) setLogoutNoticeMsg(null);
+
         setTimeout(() => {
           onLoginSuccess();
         }, 400);
       }
     } catch (err: any) {
-      setErrorMsg('Incorrect email or password. Please verify your credentials.');
+      setErrorMsg(err?.message || 'Incorrect email or password. Please verify your credentials.');
     } finally {
       setIsLoading(false);
     }
