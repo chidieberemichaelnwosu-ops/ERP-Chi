@@ -1,10 +1,29 @@
 export type UserRole = 'super_admin' | 'administrator' | 'manager' | 'salesperson';
+export type UserStatus = 'pending' | 'active' | 'disabled' | 'suspended' | 'rejected';
 
 export interface User {
   id: string;
   name: string;
   role: UserRole;
   email: string;
+}
+
+export interface AppUser {
+  id: string;
+  fullName: string;
+  phone: string;
+  email: string;
+  branch?: string;
+  businessName?: string;
+  businessAddress?: string;
+  businessPhone?: string;
+  businessEmail?: string;
+  role: UserRole;
+  requestedRole?: UserRole;
+  status: UserStatus;
+  registrationDate: string;
+  rejectionReason?: string;
+  password?: string;
 }
 
 export interface ProductCategory {
@@ -146,17 +165,24 @@ export interface BusinessSettings {
   logoUrl?: string;
   address: string;
   phone: string;
+  alternatePhone?: string;
   email: string;
+  website?: string;
+  city?: string;
+  state?: string;
+  country?: string;
   enableTax?: boolean;
   taxName?: string;
   taxRate: number; // percentage
   displayTaxOnReceipt?: boolean;
   currencySymbol: string; // e.g. ₦, $, €, GH₵, KSh
   currencyCode: string; // NGN, USD, EUR, GHS, KES
+  receiptHeader?: string;
   receiptFooter: string;
   enableDarkMode: boolean;
   autoBackupCloud: boolean;
   lastBackupTime?: string;
+  storeName?: string;
 }
 
 export interface AuditLog {
@@ -170,11 +196,12 @@ export interface AuditLog {
 
 export interface NotificationItem {
   id: string;
-  type: 'low_stock' | 'out_of_stock' | 'large_expense' | 'debt_warning' | 'daily_summary';
+  type: 'low_stock' | 'out_of_stock' | 'large_expense' | 'debt_warning' | 'daily_summary' | 'user_registration';
   title: string;
   message: string;
   timestamp: string;
   read: boolean;
+  actionTab?: string;
 }
 
 export type ReportPeriod = 'today' | 'yesterday' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'quarter' | 'year' | 'custom';

@@ -236,15 +236,22 @@ export const INITIAL_SUPPLIERS: Supplier[] = [
 
 export const INITIAL_SETTINGS: BusinessSettings = {
   businessName: 'Glow Beauty Cosmetics Store',
+  logoUrl: '',
   address: 'Plot 12 Admiralty Way, Lekki Phase 1, Lagos',
   phone: '+234 803 888 9900',
+  alternatePhone: '+234 802 111 2233',
   email: 'hello@glowbeauty.ng',
+  website: 'https://glowbeauty.ng',
+  city: 'Lekki',
+  state: 'Lagos',
+  country: 'Nigeria',
   enableTax: false,
   taxName: 'VAT',
   taxRate: 7.5, // 7.5% VAT
   displayTaxOnReceipt: false,
   currencySymbol: '₦',
   currencyCode: 'NGN',
+  receiptHeader: 'Glow Beauty Cosmetics Store - Quality Beauty & Skincare Depot',
   receiptFooter: 'Thank you for shopping at Glow Beauty! Items purchased in good condition are non-refundable after 3 days.',
   enableDarkMode: false,
   autoBackupCloud: true,

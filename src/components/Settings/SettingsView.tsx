@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
-import { UserRole } from '../../types';
+import { UserRole, AppUser } from '../../types';
+import { SupabaseSettingsTab } from './SupabaseSettingsTab';
 import {
   Settings,
   Store,
@@ -52,139 +53,164 @@ export const SettingsView: React.FC = () => {
     importDatabaseJSON,
     triggerSync,
     isSyncing,
+    appUsers,
+    updateUserStatus,
+    updateUser,
+    deleteUser,
+    resetUserPassword,
+    pendingApprovalsCount,
+    setIsPendingApprovalsOpen,
+    registerUser,
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'general' | 'tax' | 'roles' | 'backup' | 'audit'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'tax' | 'roles' | 'supabase' | 'backup' | 'audit'>('general');
 
-  // Staff User Management State
-  const [staffUsers, setStaffUsers] = useState<StaffUserItem[]>(() => {
-    try {
-      const saved = localStorage.getItem('glow_erp_staff_users');
-      return saved ? JSON.parse(saved) : INITIAL_STAFF_USERS;
-    } catch {
-      return INITIAL_STAFF_USERS;
-    }
-  });
+  // User Search & Filters
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState<string>('all');
+  const [userStatusFilter, setUserStatusFilter] = useState<string>('all');
 
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserPhone, setNewUserPhone] = useState('');
+  const [newUserBranch, setNewUserBranch] = useState('Main Store');
   const [newUserRole, setNewUserRole] = useState<UserRole>('salesperson');
 
-  const saveStaffUsersList = (users: StaffUserItem[]) => {
-    setStaffUsers(users);
-    try {
-      localStorage.setItem('glow_erp_staff_users', JSON.stringify(users));
-    } catch (e) {
-      console.error(e);
-    }
-  };
+  // Edit User Modal state
+  const [editModalUser, setEditModalUser] = useState<AppUser | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editBranch, setEditBranch] = useState('Main Store');
+  const [editRole, setEditRole] = useState<UserRole>('salesperson');
 
   const handleCreateStaffUser = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newUserName.trim() || !newUserEmail.trim()) return;
+    if (!newUserName.trim() || !newUserEmail.trim() || !newUserPhone.trim()) return;
 
-    // Security check: Administrator cannot create Super Admin or Administrator
     if (userRole === 'administrator' && (newUserRole === 'super_admin' || newUserRole === 'administrator')) {
-      alert('Administrators can only assign Sales Person and Manager roles.');
+      alert('Security Violation: Administrators can only request or assign Sales Person and Manager roles.');
       return;
     }
 
-    const newUser: StaffUserItem = {
-      id: `usr-${Date.now()}`,
-      name: newUserName.trim(),
+    const res = registerUser({
+      fullName: newUserName.trim(),
       email: newUserEmail.trim(),
-      role: newUserRole,
-      status: 'active',
-    };
+      phone: newUserPhone.trim(),
+      branch: newUserBranch,
+      requestedRole: newUserRole,
+    });
 
-    saveStaffUsersList([...staffUsers, newUser]);
-    setNewUserName('');
-    setNewUserEmail('');
-    setNewUserRole('salesperson');
-    setShowAddUserModal(false);
-    alert(`Staff account for ${newUser.name} created successfully!`);
-  };
-
-  const handleChangeStaffRole = (userId: string, targetRole: UserRole) => {
-    const targetUser = staffUsers.find(u => u.id === userId);
-    if (!targetUser) return;
-
-    // Security checks
-    if (userRole === 'administrator') {
-      if (targetUser.role === 'super_admin' || targetUser.role === 'administrator') {
-        alert('Administrators cannot modify Super Administrator or Administrator accounts.');
-        return;
-      }
-      if (targetRole === 'super_admin' || targetRole === 'administrator') {
-        alert('Administrators can only assign Sales Person or Manager roles.');
-        return;
-      }
+    if (res.success) {
+      setNewUserName('');
+      setNewUserEmail('');
+      setNewUserPhone('');
+      setNewUserRole('salesperson');
+      setShowAddUserModal(false);
+      alert(res.message);
+    } else {
+      alert(res.message);
     }
-
-    const updated = staffUsers.map(u => (u.id === userId ? { ...u, role: targetRole } : u));
-    saveStaffUsersList(updated);
   };
 
-  const handleToggleStaffStatus = (userId: string) => {
-    const targetUser = staffUsers.find(u => u.id === userId);
-    if (!targetUser) return;
+  const handleOpenEditUser = (usr: AppUser) => {
+    if (primaryUserRole === 'administrator' && usr.role === 'super_admin') {
+      alert('Security Violation: Administrators cannot edit Super Administrator accounts.');
+      return;
+    }
+    setEditModalUser(usr);
+    setEditName(usr.fullName);
+    setEditPhone(usr.phone);
+    setEditBranch(usr.branch || 'Main Store');
+    setEditRole(usr.role);
+  };
 
-    if (userRole === 'administrator' && (targetUser.role === 'super_admin' || targetUser.role === 'administrator')) {
-      alert('Administrators cannot disable Super Administrator or Administrator accounts.');
+  const handleSaveUserEdits = () => {
+    if (!editModalUser) return;
+    if (primaryUserRole === 'administrator' && editRole === 'super_admin') {
+      alert('Security Violation: Administrators cannot assign Super Administrator privileges.');
       return;
     }
 
-    const updated = staffUsers.map(u =>
-      u.id === userId ? { ...u, status: (u.status === 'active' ? 'disabled' : 'active') as 'active' | 'disabled' } : u
-    );
-    saveStaffUsersList(updated);
+    updateUser(editModalUser.id, {
+      fullName: editName.trim(),
+      phone: editPhone.trim(),
+      branch: editBranch,
+      role: editRole,
+    });
+    setEditModalUser(null);
   };
 
-  const handleDeleteStaffUser = (userId: string) => {
-    if (userRole !== 'super_admin') {
-      alert('Only the Super Administrator has permission to delete staff user accounts.');
-      return;
-    }
-    const targetUser = staffUsers.find(u => u.id === userId);
-    if (targetUser?.role === 'super_admin') {
-      alert('Cannot delete the primary Super Administrator account.');
-      return;
-    }
-    if (confirm('Are you sure you want to remove this staff account?')) {
-      saveStaffUsersList(staffUsers.filter(u => u.id !== userId));
-    }
-  };
+  const filteredUsers = appUsers.filter((u) => {
+    const matchesSearch =
+      u.fullName.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+      u.email.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+      u.phone.includes(userSearchTerm) ||
+      (u.branch && u.branch.toLowerCase().includes(userSearchTerm.toLowerCase()));
+
+    const matchesRole = userRoleFilter === 'all' || u.role === userRoleFilter;
+    const matchesStatus = userStatusFilter === 'all' || u.status === userStatusFilter;
+
+    return matchesSearch && matchesRole && matchesStatus;
+  });
 
   // Form State
-  const [bName, setBName] = useState(settings.businessName);
-  const [bAddress, setBAddress] = useState(settings.address);
-  const [bPhone, setBPhone] = useState(settings.phone);
-  const [bEmail, setBEmail] = useState(settings.email);
+  const [bName, setBName] = useState(settings.businessName || '');
+  const [logoUrl, setLogoUrl] = useState(settings.logoUrl || '');
+  const [bAddress, setBAddress] = useState(settings.address || '');
+  const [bPhone, setBPhone] = useState(settings.phone || '');
+  const [alternatePhone, setAlternatePhone] = useState(settings.alternatePhone || '');
+  const [bEmail, setBEmail] = useState(settings.email || '');
+  const [website, setWebsite] = useState(settings.website || '');
+  const [city, setCity] = useState(settings.city || '');
+  const [state, setState] = useState(settings.state || '');
+  const [country, setCountry] = useState(settings.country || 'Nigeria');
   const [enableTax, setEnableTax] = useState(settings.enableTax ?? false);
   const [taxName, setTaxName] = useState(settings.taxName || 'VAT');
   const [taxRate, setTaxRate] = useState(settings.taxRate || 7.5);
   const [displayTaxOnReceipt, setDisplayTaxOnReceipt] = useState(settings.displayTaxOnReceipt ?? false);
-  const [currencySymbol, setCurrencySymbol] = useState(settings.currencySymbol);
-  const [receiptFooter, setReceiptFooter] = useState(settings.receiptFooter);
+  const [currencySymbol, setCurrencySymbol] = useState(settings.currencySymbol || '₦');
+  const [currencyCode, setCurrencyCode] = useState(settings.currencyCode || 'NGN');
+  const [receiptHeader, setReceiptHeader] = useState(settings.receiptHeader || '');
+  const [receiptFooter, setReceiptFooter] = useState(settings.receiptFooter || '');
   const [jsonInput, setJsonInput] = useState('');
   const [importStatus, setImportStatus] = useState<string | null>(null);
 
+  const canEditBusinessProfile = userRole === 'super_admin' || userRole === 'administrator';
+
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEditBusinessProfile) {
+      alert('Security Violation: Only Super Administrators and Administrators can save Business Profile changes.');
+      return;
+    }
+
+    if (!bName.trim()) {
+      alert('Business Name is required.');
+      return;
+    }
+
     updateSettings({
-      businessName: bName,
-      address: bAddress,
-      phone: bPhone,
-      email: bEmail,
+      businessName: bName.trim(),
+      logoUrl: logoUrl.trim(),
+      address: bAddress.trim(),
+      phone: bPhone.trim(),
+      alternatePhone: alternatePhone.trim(),
+      email: bEmail.trim(),
+      website: website.trim(),
+      city: city.trim(),
+      state: state.trim(),
+      country: country.trim(),
       enableTax,
       taxName,
-      taxRate,
+      taxRate: Number(taxRate),
       displayTaxOnReceipt,
       currencySymbol,
-      receiptFooter,
+      currencyCode,
+      receiptHeader: receiptHeader.trim(),
+      receiptFooter: receiptFooter.trim(),
     });
-    alert('Settings updated successfully!');
+    alert('Business Profile updated successfully! All receipts, invoices, reports, and dashboard header have been synchronized.');
   };
 
   const handleDownloadBackup = () => {
@@ -219,7 +245,7 @@ export const SettingsView: React.FC = () => {
           Settings, Users & Backup
         </h2>
         <p className="text-xs text-slate-400 mt-0.5">
-          Configure business details, currency, tax rates, user roles, data backups, and audit logs.
+          Configure business profile, currency, tax rates, user roles, data backups, and audit logs.
         </p>
       </div>
 
@@ -233,7 +259,7 @@ export const SettingsView: React.FC = () => {
               : 'bg-white dark:bg-slate-800 text-slate-500 hover:text-slate-700'
           }`}
         >
-          Store Profile
+          🏢 Business Profile
         </button>
         <button
           onClick={() => setActiveTab('tax')}
@@ -254,6 +280,16 @@ export const SettingsView: React.FC = () => {
           }`}
         >
           Roles & Permissions
+        </button>
+        <button
+          onClick={() => setActiveTab('supabase')}
+          className={`px-4 py-2 rounded-full font-bold text-xs transition-all shrink-0 ${
+            activeTab === 'supabase'
+              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200 dark:shadow-none'
+              : 'bg-white dark:bg-slate-800 text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          ⚡ Supabase Backend
         </button>
         <button
           onClick={() => setActiveTab('backup')}
@@ -277,70 +313,223 @@ export const SettingsView: React.FC = () => {
         </button>
       </div>
 
-      {/* Tab 1: Store Profile */}
+      {/* Tab 1: Business Profile */}
       {activeTab === 'general' && (
-        <form onSubmit={handleSaveSettings} className="bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-[32px] border border-slate-100 dark:border-slate-700/80 shadow-xs space-y-4 max-w-2xl">
-          <div className="space-y-3.5">
+        <form onSubmit={handleSaveSettings} className="bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-[32px] border border-slate-100 dark:border-slate-700/80 shadow-xs space-y-6 max-w-3xl">
+          {!canEditBusinessProfile && (
+            <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs font-semibold flex items-center gap-2">
+              <Lock className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <span>🔒 Read-Only Mode: Only Super Administrators and Administrators can update the Business Profile details.</span>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-3">
+            <div>
+              <h3 className="font-extrabold text-base text-slate-900 dark:text-white">Business Information</h3>
+              <p className="text-xs text-slate-400">This profile controls receipts, headers, dashboard titles, and official report headers.</p>
+            </div>
+            {logoUrl && (
+              <img src={logoUrl} alt="Logo Preview" className="w-12 h-12 rounded-2xl object-cover border border-slate-200 dark:border-slate-700" />
+            )}
+          </div>
+
+          <div className="space-y-4">
+            {/* Logo URL */}
             <div>
               <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
-                Business Name
+                Business Logo Image URL
               </label>
               <input
-                type="text"
-                value={bName}
-                onChange={(e) => setBName(e.target.value)}
-                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-800 dark:text-white focus:border-rose-500 outline-none"
+                type="url"
+                disabled={!canEditBusinessProfile}
+                value={logoUrl}
+                onChange={(e) => setLogoUrl(e.target.value)}
+                placeholder="https://example.com/logo.png"
+                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs text-slate-800 dark:text-white focus:border-rose-500 outline-none disabled:opacity-60"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            {/* Business Name */}
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
+                Business Name <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                disabled={!canEditBusinessProfile}
+                value={bName}
+                onChange={(e) => setBName(e.target.value)}
+                placeholder="e.g. Chidi Cosmetics & Beauty Store"
+                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-800 dark:text-white focus:border-rose-500 outline-none disabled:opacity-60"
+              />
+            </div>
+
+            {/* Phones & Emails */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
-                  Phone Number
+                  Primary Phone Number <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
+                  required
+                  disabled={!canEditBusinessProfile}
                   value={bPhone}
                   onChange={(e) => setBPhone(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs text-slate-800 dark:text-white focus:border-rose-500 outline-none"
+                  placeholder="+234 801 234 5678"
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs text-slate-800 dark:text-white focus:border-rose-500 outline-none disabled:opacity-60"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
-                  Email
+                  Alternate Phone Number
                 </label>
                 <input
-                  type="email"
-                  value={bEmail}
-                  onChange={(e) => setBEmail(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs text-slate-800 dark:text-white focus:border-rose-500 outline-none"
+                  type="text"
+                  disabled={!canEditBusinessProfile}
+                  value={alternatePhone}
+                  onChange={(e) => setAlternatePhone(e.target.value)}
+                  placeholder="+234 802 999 8877"
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs text-slate-800 dark:text-white focus:border-rose-500 outline-none disabled:opacity-60"
                 />
               </div>
             </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  disabled={!canEditBusinessProfile}
+                  value={bEmail}
+                  onChange={(e) => setBEmail(e.target.value)}
+                  placeholder="contact@beautybusiness.com"
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs text-slate-800 dark:text-white focus:border-rose-500 outline-none disabled:opacity-60"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
+                  Website URL
+                </label>
+                <input
+                  type="url"
+                  disabled={!canEditBusinessProfile}
+                  value={website}
+                  onChange={(e) => setWebsite(e.target.value)}
+                  placeholder="https://chidi-cosmetics.com"
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs text-slate-800 dark:text-white focus:border-rose-500 outline-none disabled:opacity-60"
+                />
+              </div>
+            </div>
+
+            {/* Address, City, State, Country */}
             <div>
               <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
-                Store Address
+                Physical Store Address <span className="text-rose-500">*</span>
               </label>
               <input
                 type="text"
+                required
+                disabled={!canEditBusinessProfile}
                 value={bAddress}
                 onChange={(e) => setBAddress(e.target.value)}
-                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs text-slate-800 dark:text-white focus:border-rose-500 outline-none"
+                placeholder="Plot 12 Admiralty Way, Lekki Phase 1"
+                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs text-slate-800 dark:text-white focus:border-rose-500 outline-none disabled:opacity-60"
               />
             </div>
 
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
+                  City
+                </label>
+                <input
+                  type="text"
+                  disabled={!canEditBusinessProfile}
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  placeholder="Lekki"
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs text-slate-800 dark:text-white focus:border-rose-500 outline-none disabled:opacity-60"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
+                  State
+                </label>
+                <input
+                  type="text"
+                  disabled={!canEditBusinessProfile}
+                  value={state}
+                  onChange={(e) => setState(e.target.value)}
+                  placeholder="Lagos"
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs text-slate-800 dark:text-white focus:border-rose-500 outline-none disabled:opacity-60"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
+                  Country
+                </label>
+                <input
+                  type="text"
+                  disabled={!canEditBusinessProfile}
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                  placeholder="Nigeria"
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs text-slate-800 dark:text-white focus:border-rose-500 outline-none disabled:opacity-60"
+                />
+              </div>
+            </div>
+
+            {/* Currency settings */}
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
+                  Currency Symbol
+                </label>
+                <input
+                  type="text"
+                  disabled={!canEditBusinessProfile}
+                  value={currencySymbol}
+                  onChange={(e) => setCurrencySymbol(e.target.value)}
+                  placeholder="₦"
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-800 dark:text-white focus:border-rose-500 outline-none disabled:opacity-60"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
+                  Currency Code
+                </label>
+                <input
+                  type="text"
+                  disabled={!canEditBusinessProfile}
+                  value={currencyCode}
+                  onChange={(e) => setCurrencyCode(e.target.value)}
+                  placeholder="NGN"
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs uppercase font-bold text-slate-800 dark:text-white focus:border-rose-500 outline-none disabled:opacity-60"
+                />
+              </div>
+            </div>
+
+            {/* Receipt Header & Footer */}
             <div>
               <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
-                Currency Symbol
+                Receipt Custom Header Text
               </label>
               <input
                 type="text"
-                value={currencySymbol}
-                onChange={(e) => setCurrencySymbol(e.target.value)}
-                placeholder="₦"
-                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-800 dark:text-white focus:border-rose-500 outline-none"
+                disabled={!canEditBusinessProfile}
+                value={receiptHeader}
+                onChange={(e) => setReceiptHeader(e.target.value)}
+                placeholder="Quality Beauty & Skincare Depot"
+                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs text-slate-800 dark:text-white focus:border-rose-500 outline-none disabled:opacity-60"
               />
             </div>
 
@@ -349,20 +538,24 @@ export const SettingsView: React.FC = () => {
                 Receipt Footer Disclaimer
               </label>
               <textarea
+                disabled={!canEditBusinessProfile}
                 value={receiptFooter}
                 onChange={(e) => setReceiptFooter(e.target.value)}
                 rows={2}
-                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs text-slate-800 dark:text-white focus:border-rose-500 outline-none"
+                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs text-slate-800 dark:text-white focus:border-rose-500 outline-none disabled:opacity-60"
               />
             </div>
           </div>
 
-          <button
-            type="submit"
-            className="w-full py-3.5 bg-rose-500 text-white rounded-2xl text-xs font-bold shadow-lg shadow-rose-200 dark:shadow-none hover:bg-rose-600 transition mt-2"
-          >
-            Save Store Profile
-          </button>
+          {canEditBusinessProfile && (
+            <button
+              type="submit"
+              className="w-full py-3.5 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl text-xs font-black shadow-lg shadow-rose-200 dark:shadow-none transition mt-2 active:scale-95 flex items-center justify-center gap-2"
+            >
+              <Check className="w-4 h-4" />
+              <span>Save Business Profile</span>
+            </button>
+          )}
         </form>
       )}
 
@@ -613,34 +806,88 @@ export const SettingsView: React.FC = () => {
                   <div>
                     <h3 className="font-black text-rose-900 dark:text-white text-base flex items-center gap-2">
                       <ShieldCheck className="w-5 h-5 text-rose-500" />
-                      Staff Accounts & Role Assignments
+                      Staff Accounts & Access Management
                     </h3>
                     <p className="text-xs text-slate-400 mt-0.5">
                       {primaryUserRole === 'super_admin'
-                        ? 'Super Administrator Access: Full authority over staff accounts, role assignment, and system permissions.'
-                        : 'Administrator Access: Create staff accounts and assign Sales Person or Manager roles.'}
+                        ? 'Super Administrator Access: Full authority over staff accounts, role assignment, registration approvals, and user statuses.'
+                        : 'Administrator Access: Create and manage Sales Person and Manager accounts. Super Admin accounts are protected.'}
                     </p>
                   </div>
 
-                  <button
-                    onClick={() => setShowAddUserModal(!showAddUserModal)}
-                    className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-2xl shadow-md active:scale-95 transition flex items-center justify-center gap-2 shrink-0"
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    Add New Staff Account
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {pendingApprovalsCount > 0 && (
+                      <button
+                        onClick={() => setIsPendingApprovalsOpen(true)}
+                        className="px-3 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-2xl shadow-md transition flex items-center gap-1.5 animate-bounce"
+                      >
+                        <AlertCircle className="w-4 h-4" />
+                        Pending Approvals ({pendingApprovalsCount})
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setShowAddUserModal(!showAddUserModal)}
+                      className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-2xl shadow-md active:scale-95 transition flex items-center justify-center gap-2 shrink-0"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      Add New Account
+                    </button>
+                  </div>
                 </div>
 
-              {/* Add Staff Modal / Form */}
+                {/* Filter & Search Toolbar */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 dark:bg-slate-900/60 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/50">
+                  <div>
+                    <label className="block text-[10px] font-extrabold uppercase text-slate-400 mb-1">Search Staff</label>
+                    <input
+                      type="text"
+                      placeholder="Search by name, email, phone..."
+                      value={userSearchTerm}
+                      onChange={(e) => setUserSearchTerm(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-extrabold uppercase text-slate-400 mb-1">Filter Role</label>
+                    <select
+                      value={userRoleFilter}
+                      onChange={(e) => setUserRoleFilter(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold outline-none"
+                    >
+                      <option value="all">All Roles</option>
+                      <option value="super_admin">Super Administrator</option>
+                      <option value="administrator">Administrator</option>
+                      <option value="manager">Manager</option>
+                      <option value="salesperson">Sales Person</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-extrabold uppercase text-slate-400 mb-1">Filter Status</label>
+                    <select
+                      value={userStatusFilter}
+                      onChange={(e) => setUserStatusFilter(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold outline-none"
+                    >
+                      <option value="all">All Account Statuses</option>
+                      <option value="pending">Pending Approval</option>
+                      <option value="active">Active</option>
+                      <option value="disabled">Disabled</option>
+                      <option value="suspended">Suspended</option>
+                      <option value="rejected">Rejected</option>
+                    </select>
+                  </div>
+                </div>
+
+              {/* Add Staff Form Modal */}
               {showAddUserModal && (
                 <form onSubmit={handleCreateStaffUser} className="p-5 rounded-2xl bg-rose-50/50 dark:bg-slate-900 border border-rose-200 dark:border-slate-700 space-y-4">
                   <h4 className="font-extrabold text-sm text-rose-900 dark:text-white flex items-center gap-2">
-                    <UserPlus className="w-4 h-4 text-rose-500" /> Create New Staff User Account
+                    <UserPlus className="w-4 h-4 text-rose-500" /> Register New Staff Account
                   </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     <div>
                       <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
-                        Full Name
+                        Full Name *
                       </label>
                       <input
                         type="text"
@@ -653,7 +900,7 @@ export const SettingsView: React.FC = () => {
                     </div>
                     <div>
                       <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
-                        Email Address
+                        Email Address *
                       </label>
                       <input
                         type="email"
@@ -661,6 +908,19 @@ export const SettingsView: React.FC = () => {
                         value={newUserEmail}
                         onChange={(e) => setNewUserEmail(e.target.value)}
                         placeholder="john@store.com"
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                        Phone Number *
+                      </label>
+                      <input
+                        type="tel"
+                        required
+                        value={newUserPhone}
+                        onChange={(e) => setNewUserPhone(e.target.value)}
+                        placeholder="+234 800 000 0000"
                         className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium outline-none"
                       />
                     </div>
@@ -675,7 +935,7 @@ export const SettingsView: React.FC = () => {
                       >
                         <option value="salesperson">Sales Person</option>
                         <option value="manager">Manager</option>
-                        {userRole === 'super_admin' && (
+                        {primaryUserRole === 'super_admin' && (
                           <>
                             <option value="administrator">Administrator</option>
                             <option value="super_admin">Super Administrator</option>
@@ -696,7 +956,7 @@ export const SettingsView: React.FC = () => {
                       type="submit"
                       className="px-5 py-2 bg-rose-600 text-white font-bold text-xs rounded-xl shadow-md hover:bg-rose-700"
                     >
-                      Save Account
+                      Register Staff User
                     </button>
                   </div>
                 </form>
@@ -707,99 +967,219 @@ export const SettingsView: React.FC = () => {
                 <table className="w-full text-left text-xs">
                   <thead>
                     <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-700 text-slate-400 font-bold uppercase tracking-wider">
-                      <th className="p-3.5">Staff Name & Email</th>
+                      <th className="p-3.5">Staff Name & Contact</th>
                       <th className="p-3.5">Assigned Role</th>
+                      <th className="p-3.5">Branch</th>
                       <th className="p-3.5">Status</th>
-                      <th className="p-3.5 text-right">Security Actions</th>
+                      <th className="p-3.5 text-right">User Security Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
-                    {staffUsers.map((usr) => {
-                      const isSuperAdminUser = usr.role === 'super_admin';
-                      const isAdminUser = usr.role === 'administrator';
-                      const isLockedForCurrentAdmin =
-                        primaryUserRole === 'administrator' && (isSuperAdminUser || isAdminUser);
+                    {filteredUsers.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="p-8 text-center text-slate-400 text-xs">
+                          No user accounts matched your search and filter criteria.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredUsers.map((usr) => {
+                        const isSuperAdminUser = usr.role === 'super_admin';
+                        const isLockedForCurrentAdmin =
+                          primaryUserRole === 'administrator' && isSuperAdminUser;
 
-                      return (
-                        <tr key={usr.id} className="hover:bg-rose-50/20 dark:hover:bg-slate-700/30 transition">
-                          <td className="p-3.5">
-                            <span className="font-extrabold text-slate-900 dark:text-white block">
-                              {usr.name}
-                            </span>
-                            <span className="text-[11px] text-slate-400">{usr.email}</span>
-                          </td>
-
-                          <td className="p-3.5">
-                            {isLockedForCurrentAdmin ? (
-                              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-extrabold text-[11px]">
-                                <Lock className="w-3 h-3 text-slate-400" />
-                                {usr.role === 'super_admin' ? 'Super Admin' : 'Administrator'}
+                        return (
+                          <tr key={usr.id} className="hover:bg-rose-50/20 dark:hover:bg-slate-700/30 transition">
+                            <td className="p-3.5">
+                              <span className="font-extrabold text-slate-900 dark:text-white block">
+                                {usr.fullName}
                               </span>
-                            ) : (
-                              <select
-                                value={usr.role}
-                                onChange={(e) => handleChangeStaffRole(usr.id, e.target.value as UserRole)}
-                                className="px-3 py-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs text-slate-800 dark:text-white outline-none cursor-pointer"
-                              >
-                                <option value="salesperson">Sales Person</option>
-                                <option value="manager">Manager</option>
-                                {primaryUserRole === 'super_admin' && (
-                                  <>
-                                    <option value="administrator">Administrator</option>
+                              <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
+                                <span>{usr.email}</span>
+                                <span>•</span>
+                                <span>{usr.phone}</span>
+                              </div>
+                            </td>
+
+                            <td className="p-3.5">
+                              {isLockedForCurrentAdmin ? (
+                                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-extrabold text-[11px]">
+                                  <Lock className="w-3 h-3 text-slate-400" />
+                                  Super Administrator
+                                </span>
+                              ) : (
+                                <select
+                                  value={usr.role}
+                                  onChange={(e) =>
+                                    updateUser(usr.id, { role: e.target.value as UserRole })
+                                  }
+                                  className="px-3 py-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs text-slate-800 dark:text-white outline-none cursor-pointer"
+                                >
+                                  <option value="salesperson">Sales Person</option>
+                                  <option value="manager">Manager</option>
+                                  <option value="administrator">Administrator</option>
+                                  {primaryUserRole === 'super_admin' && (
                                     <option value="super_admin">Super Administrator</option>
-                                  </>
-                                )}
-                              </select>
-                            )}
-                          </td>
+                                  )}
+                                </select>
+                              )}
+                            </td>
 
-                          <td className="p-3.5">
-                            <span
-                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
-                                usr.status === 'active'
-                                  ? 'bg-teal-50 text-teal-700 border border-teal-200'
-                                  : 'bg-slate-100 text-slate-500 border border-slate-300'
-                              }`}
-                            >
-                              {usr.status}
-                            </span>
-                          </td>
+                            <td className="p-3.5 font-bold text-slate-600 dark:text-slate-300">
+                              {usr.branch || 'Main Store'}
+                            </td>
 
-                          <td className="p-3.5 text-right space-x-2">
-                            <button
-                              onClick={() => handleToggleStaffStatus(usr.id)}
-                              disabled={isLockedForCurrentAdmin}
-                              className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg font-bold text-[11px] disabled:opacity-40"
-                              title={usr.status === 'active' ? 'Disable Account' : 'Enable Account'}
-                            >
-                              {usr.status === 'active' ? 'Disable' : 'Enable'}
-                            </button>
-
-                            <button
-                              onClick={() => alert(`Password reset email sent to ${usr.email}`)}
-                              className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg font-bold text-[11px]"
-                              title="Reset Password"
-                            >
-                              Reset Pass
-                            </button>
-
-                            {primaryUserRole === 'super_admin' && !isSuperAdminUser && (
-                              <button
-                                onClick={() => handleDeleteStaffUser(usr.id)}
-                                className="p-1 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg"
-                                title="Delete Account"
+                            <td className="p-3.5">
+                              <span
+                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
+                                  usr.status === 'active'
+                                    ? 'bg-teal-50 text-teal-700 border border-teal-200'
+                                    : usr.status === 'pending'
+                                    ? 'bg-amber-50 text-amber-800 border border-amber-300 animate-pulse'
+                                    : usr.status === 'suspended'
+                                    ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                                    : usr.status === 'rejected'
+                                    ? 'bg-rose-100 text-rose-700 border border-rose-300'
+                                    : 'bg-slate-100 text-slate-500 border border-slate-300'
+                                }`}
                               >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                                {usr.status}
+                              </span>
+                            </td>
+
+                            <td className="p-3.5 text-right space-x-1.5">
+                              {usr.status === 'pending' ? (
+                                <button
+                                  onClick={() => setIsPendingApprovalsOpen(true)}
+                                  className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-lg text-[11px]"
+                                >
+                                  Review
+                                </button>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() =>
+                                      updateUserStatus(
+                                        usr.id,
+                                        usr.status === 'active' ? 'disabled' : 'active'
+                                      )
+                                    }
+                                    disabled={isLockedForCurrentAdmin}
+                                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg font-bold text-[11px] disabled:opacity-40"
+                                    title={usr.status === 'active' ? 'Disable Account' : 'Activate Account'}
+                                  >
+                                    {usr.status === 'active' ? 'Disable' : 'Activate'}
+                                  </button>
+
+                                  <button
+                                    onClick={() => handleOpenEditUser(usr)}
+                                    disabled={isLockedForCurrentAdmin}
+                                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg font-bold text-[11px] disabled:opacity-40"
+                                  >
+                                    Edit
+                                  </button>
+
+                                  <button
+                                    onClick={() => resetUserPassword(usr.id)}
+                                    className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg font-bold text-[11px]"
+                                    title="Reset Password"
+                                  >
+                                    Pass Reset
+                                  </button>
+                                </>
+                              )}
+
+                              {!isSuperAdminUser && (
+                                <button
+                                  onClick={() => {
+                                    if (confirm(`Are you sure you want to delete user ${usr.fullName}?`)) {
+                                      deleteUser(usr.id);
+                                    }
+                                  }}
+                                  disabled={isLockedForCurrentAdmin}
+                                  className="p-1 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg disabled:opacity-40 inline-block align-middle"
+                                  title="Delete Account"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
             </div>
+
+            {/* Edit User Modal */}
+            {editModalUser && (
+              <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+                <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4">
+                  <h3 className="font-extrabold text-base text-slate-900 dark:text-white">
+                    Edit User Profile: {editModalUser.fullName}
+                  </h3>
+                  <div className="space-y-3 text-xs">
+                    <div>
+                      <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">Full Name</label>
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-medium outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">Phone Number</label>
+                      <input
+                        type="tel"
+                        value={editPhone}
+                        onChange={(e) => setEditPhone(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-medium outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">Branch Location</label>
+                      <input
+                        type="text"
+                        value={editBranch}
+                        onChange={(e) => setEditBranch(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-medium outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">Assigned Operational Role</label>
+                      <select
+                        value={editRole}
+                        onChange={(e) => setEditRole(e.target.value as UserRole)}
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold outline-none"
+                      >
+                        <option value="salesperson">Sales Person</option>
+                        <option value="manager">Manager</option>
+                        <option value="administrator">Administrator</option>
+                        {primaryUserRole === 'super_admin' && (
+                          <option value="super_admin">Super Administrator</option>
+                        )}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      onClick={() => setEditModalUser(null)}
+                      className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSaveUserEdits}
+                      className="px-5 py-2 bg-rose-600 text-white font-bold rounded-xl shadow-md hover:bg-rose-700"
+                    >
+                      Save Changes
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
         </div>
@@ -859,6 +1239,9 @@ export const SettingsView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Tab: Supabase Backend */}
+      {activeTab === 'supabase' && <SupabaseSettingsTab />}
 
       {/* Tab 4: Audit Logs */}
       {activeTab === 'audit' && (

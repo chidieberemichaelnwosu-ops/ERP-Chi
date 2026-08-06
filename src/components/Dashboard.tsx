@@ -87,7 +87,7 @@ export const Dashboard: React.FC = () => {
     : 'No sales today';
 
   // ------------------------------------------------------------------
-  // UNIVERSAL WELCOME CARD COMPONENT
+  // UNIVERSAL WELCOME CARD COMPONENT (REDESIGNED DYNAMIC HEADER)
   // ------------------------------------------------------------------
   const UniversalWelcomeCard = () => {
     const formattedDate = new Date().toLocaleDateString('en-US', {
@@ -97,50 +97,122 @@ export const Dashboard: React.FC = () => {
       day: 'numeric',
     });
 
-    const roleTitle =
-      userRole === 'salesperson'
-        ? 'Sales Person'
-        : userRole === 'manager'
-        ? 'Store Manager'
-        : userRole === 'administrator'
-        ? 'Administrator'
-        : 'Super Administrator';
+    // Extract ONLY first name (cleaning any role annotations)
+    const rawName = (userName || 'Chidi').replace(/\s*\(.*?\)\s*/g, '').trim();
+    const firstName = rawName.split(' ')[0] || 'Chidi';
+
+    // Role configuration & badge styling
+    const getRoleBadge = () => {
+      switch (userRole) {
+        case 'super_admin':
+          return {
+            title: 'Super Administrator',
+            badgeClass: 'bg-purple-500/30 text-purple-100 border-purple-400/40',
+            dot: '🟣',
+          };
+        case 'administrator':
+          return {
+            title: 'Administrator',
+            badgeClass: 'bg-blue-500/30 text-blue-100 border-blue-400/40',
+            dot: '🔵',
+          };
+        case 'manager':
+          return {
+            title: 'Manager',
+            badgeClass: 'bg-emerald-500/30 text-emerald-100 border-emerald-400/40',
+            dot: '🟢',
+          };
+        case 'salesperson':
+        default:
+          return {
+            title: 'Sales Person',
+            badgeClass: 'bg-amber-500/30 text-amber-100 border-amber-400/40',
+            dot: '🟠',
+          };
+      }
+    };
+
+    const roleBadge = getRoleBadge();
+    const isBusinessConfigured = Boolean(
+      settings.businessName &&
+      settings.businessName.trim() !== '' &&
+      settings.businessName !== 'Not Configured'
+    );
+    const canEditBusiness = userRole === 'super_admin' || userRole === 'administrator';
 
     return (
-      <div className="bg-gradient-to-r from-rose-600 via-rose-700 to-slate-900 rounded-[32px] p-6 sm:p-8 text-white shadow-xl shadow-rose-950/20 relative overflow-hidden">
-        {/* Background Glow */}
-        <div className="absolute -right-12 -bottom-12 w-56 h-56 rounded-full bg-white/10 blur-3xl pointer-events-none" />
+      <div className="bg-gradient-to-r from-rose-900 via-rose-800 to-slate-900 rounded-[32px] p-6 sm:p-8 text-white shadow-2xl border border-rose-700/40 relative overflow-hidden space-y-5">
+        {/* Background Decorative Blur */}
+        <div className="absolute -right-16 -bottom-16 w-64 h-64 rounded-full bg-rose-500/10 blur-3xl pointer-events-none" />
 
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-[10px] font-extrabold tracking-wider uppercase text-white">
-                {settings.storeName || 'Retail POS Store'}
+        {/* Top Header Row: Title & Date */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-4">
+          <div className="flex items-center gap-2">
+            <span className="px-3 py-1 rounded-full bg-white/15 text-[11px] font-black tracking-wider uppercase text-rose-100 border border-white/10 backdrop-blur-md">
+              RETAIL POS STORE
+            </span>
+          </div>
+          <span className="text-xs sm:text-sm font-semibold text-rose-100/90 tracking-wide">
+            {formattedDate}
+          </span>
+        </div>
+
+        {/* Greeting Section */}
+        <div className="space-y-4">
+          <h1 className="text-2xl sm:text-4xl font-black tracking-tight text-white">
+            Welcome back, <span className="text-rose-200">{firstName}</span>! 👋
+          </h1>
+
+          {/* Business & Role Context Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-3xl pt-1">
+            {/* Business Field */}
+            <div className="p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 space-y-1">
+              <span className="text-[11px] font-bold text-rose-200 uppercase tracking-wider block">
+                Business
               </span>
-              <span className="text-xs text-rose-100 font-medium">
-                {formattedDate}
-              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-extrabold text-sm sm:text-base text-white">
+                  {isBusinessConfigured ? settings.businessName : 'Not Configured'}
+                </span>
+                {!isBusinessConfigured && canEditBusiness && (
+                  <button
+                    onClick={() => setActiveTab('settings')}
+                    className="px-2.5 py-1 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] shadow-sm transition active:scale-95"
+                  >
+                    Complete Business Profile
+                  </button>
+                )}
+              </div>
             </div>
 
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
-              Welcome back, <span className="text-rose-200">{userName || roleTitle}</span>! 👋
-            </h1>
-
-            <p className="text-xs sm:text-sm text-rose-100 max-w-xl font-medium leading-relaxed">
-              Real-time daily sales, fast product entry, inventory tracking, and business monitoring.
-            </p>
+            {/* Role Field */}
+            <div className="p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 space-y-1">
+              <span className="text-[11px] font-bold text-rose-200 uppercase tracking-wider block">
+                Role
+              </span>
+              <div className="flex items-center gap-2">
+                <span className={`px-3 py-1 rounded-xl text-xs sm:text-sm font-bold border flex items-center gap-1.5 ${roleBadge.badgeClass}`}>
+                  <span>{roleBadge.dot}</span>
+                  <span>{roleBadge.title}</span>
+                </span>
+              </div>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
-            {/* ONE Sync/Refresh Button */}
+          {/* Tagline & Sync Button Row */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
+            <p className="text-xs sm:text-sm text-rose-100/90 font-medium max-w-xl leading-relaxed italic">
+              "Real-time sales, expenses, inventory tracking and business monitoring."
+            </p>
+
             <button
               onClick={triggerSync}
               disabled={isSyncing}
-              className="p-3 sm:px-4 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-extrabold text-xs sm:text-sm border border-white/20 backdrop-blur-md active:scale-95 transition flex items-center justify-center gap-2 shrink-0"
+              className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-white text-slate-950 hover:bg-rose-50 font-black text-xs sm:text-sm shadow-lg active:scale-95 transition flex items-center justify-center gap-2.5 shrink-0 border border-white/30 disabled:opacity-60 disabled:cursor-not-allowed"
               title="Sync Offline Data"
             >
-              <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin text-rose-300' : ''}`} />
-              <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync Data'}</span>
+              <RefreshCw className={`w-4 h-4 text-rose-600 ${isSyncing ? 'animate-spin' : ''}`} />
+              <span>{isSyncing ? 'Syncing...' : 'Sync Data'}</span>
             </button>
           </div>
         </div>

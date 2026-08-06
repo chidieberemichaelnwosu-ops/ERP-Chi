@@ -1,6 +1,6 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
-import { X, Bell, AlertTriangle, CheckCircle, Trash2 } from 'lucide-react';
+import { X, Bell, AlertTriangle, UserCheck, Trash2 } from 'lucide-react';
 
 export const NotificationsModal: React.FC = () => {
   const {
@@ -9,9 +9,18 @@ export const NotificationsModal: React.FC = () => {
     setIsNotificationOpen,
     markNotificationRead,
     clearAllNotifications,
+    setIsPendingApprovalsOpen,
   } = useApp();
 
   if (!isNotificationOpen) return null;
+
+  const handleNotificationClick = (n: typeof notifications[0]) => {
+    markNotificationRead(n.id);
+    if (n.type === 'user_registration' || n.actionTab === 'pending_approvals') {
+      setIsNotificationOpen(false);
+      setIsPendingApprovalsOpen(true);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-end">
@@ -48,25 +57,34 @@ export const NotificationsModal: React.FC = () => {
               No new notifications or alerts.
             </div>
           ) : (
-            notifications.map((n) => (
+            notifications.map((n, idx) => (
               <div
-                key={n.id}
-                onClick={() => markNotificationRead(n.id)}
+                key={`${n.id}-${idx}`}
+                onClick={() => handleNotificationClick(n)}
                 className={`p-3.5 rounded-2xl border transition cursor-pointer ${
                   n.read
                     ? 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 opacity-70'
                     : 'bg-rose-50/60 dark:bg-pink-950/30 border-rose-200 dark:border-pink-900'
                 }`}
               >
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                <div className="flex items-start gap-2.5">
+                  {n.type === 'user_registration' ? (
+                    <UserCheck className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                  )}
                   <div>
-                    <h5 className="font-bold text-slate-900 dark:text-white text-xs">
+                    <h5 className="font-bold text-slate-900 dark:text-white text-xs flex items-center gap-1">
                       {n.title}
                     </h5>
                     <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">
                       {n.message}
                     </p>
+                    {n.type === 'user_registration' && (
+                      <span className="text-[10px] text-purple-600 dark:text-purple-400 font-bold mt-1 block underline">
+                        Tap to review pending approval →
+                      </span>
+                    )}
                     <span className="text-[10px] text-slate-400 mt-1 block">
                       {new Date(n.timestamp).toLocaleTimeString()}
                     </span>

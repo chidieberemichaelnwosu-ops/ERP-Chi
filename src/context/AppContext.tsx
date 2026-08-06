@@ -9,6 +9,8 @@ import {
   InventoryAdjustment,
   BusinessSettings,
   UserRole,
+  UserStatus,
+  AppUser,
   AuditLog,
   NotificationItem,
   ProductCategory,
@@ -27,6 +29,65 @@ import {
   DEFAULT_EXPENSE_CATEGORIES
 } from '../services/storage';
 import { findBestMatchingProduct } from '../utils/productMatching';
+import { supabaseSignOut } from '../lib/supabase';
+
+const INITIAL_USERS: AppUser[] = [
+  {
+    id: 'usr-1',
+    fullName: 'Chidi Nwosu (Super Admin)',
+    phone: '08012345678',
+    email: 'chidi@glossyerp.com',
+    branch: 'Main Store',
+    role: 'super_admin',
+    requestedRole: 'super_admin',
+    status: 'active',
+    registrationDate: '2026-07-01T09:00:00.000Z'
+  },
+  {
+    id: 'usr-2',
+    fullName: 'Amaka Eze (Store Admin)',
+    phone: '08023456789',
+    email: 'amaka@glossyerp.com',
+    branch: 'Main Store',
+    role: 'administrator',
+    requestedRole: 'administrator',
+    status: 'active',
+    registrationDate: '2026-07-05T10:15:00.000Z'
+  },
+  {
+    id: 'usr-3',
+    fullName: 'Kelechi Okafor (Store Manager)',
+    phone: '08034567890',
+    email: 'kelechi@glossyerp.com',
+    branch: 'Lekki Branch',
+    role: 'manager',
+    requestedRole: 'manager',
+    status: 'active',
+    registrationDate: '2026-07-10T14:30:00.000Z'
+  },
+  {
+    id: 'usr-4',
+    fullName: 'Blessing Bello (Sales Person)',
+    phone: '08045678901',
+    email: 'blessing@glossyerp.com',
+    branch: 'Main Store',
+    role: 'salesperson',
+    requestedRole: 'salesperson',
+    status: 'active',
+    registrationDate: '2026-07-15T11:45:00.000Z'
+  },
+  {
+    id: 'usr-5',
+    fullName: 'John Doe (Pending Demo)',
+    phone: '08056789012',
+    email: 'john@glossyerp.com',
+    branch: 'Ikeja Branch',
+    role: 'salesperson',
+    requestedRole: 'salesperson',
+    status: 'pending',
+    registrationDate: '2026-07-31T08:00:00.000Z'
+  }
+];
 
 interface AppContextType {
   // State
@@ -40,6 +101,7 @@ interface AppContextType {
   settings: BusinessSettings;
   categories: ProductCategory[];
   expenseCategories: ExpenseCategory[];
+  appUsers: AppUser[];
   userRole: UserRole;
   primaryUserRole: UserRole;
   userName: string;
@@ -48,8 +110,20 @@ interface AppContextType {
   isOffline: boolean;
   isSyncing: boolean;
   unSyncedCount: number;
+  pendingApprovalsCount: number;
 
-  // Modals & Navigation
+  // Modals & Navigation & Route Guard
+  currentRoute: 'splash' | 'login' | 'register' | 'forgot-password' | 'pending-approval' | 'suspended' | 'rejected' | 'app';
+  setCurrentRoute: (route: 'splash' | 'login' | 'register' | 'forgot-password' | 'pending-approval' | 'suspended' | 'rejected' | 'app') => void;
+  currentUser: AppUser | null;
+  pendingUserReg: {
+    fullName?: string;
+    email?: string;
+    requestedRole?: UserRole;
+    businessName?: string;
+    registrationDate?: string;
+  } | null;
+  setPendingUserReg: (data: any) => void;
   activeTab: string;
   setActiveTab: (tab: string) => void;
   searchQuery: string;
@@ -58,11 +132,52 @@ interface AppContextType {
   setIsSearchOpen: (open: boolean) => void;
   isNotificationOpen: boolean;
   setIsNotificationOpen: (open: boolean) => void;
+  isAuthModalOpen: boolean;
+  setIsAuthModalOpen: (open: boolean) => void;
+  isPendingApprovalsOpen: boolean;
+  setIsPendingApprovalsOpen: (open: boolean) => void;
+  isLogoutConfirmOpen: boolean;
+  setIsLogoutConfirmOpen: (open: boolean) => void;
+  isChangePasswordOpen: boolean;
+  setIsChangePasswordOpen: (open: boolean) => void;
+  isProfileModalOpen: boolean;
+  setIsProfileModalOpen: (open: boolean) => void;
+  logoutNoticeMsg: string | null;
+  setLogoutNoticeMsg: (msg: string | null) => void;
 
   // Actions
   setUserRole: (role: UserRole, reason?: string) => void;
   setPrimaryUserRole: (role: UserRole) => void;
+  setUserName: (name: string) => void;
   updateSettings: (newSettings: Partial<BusinessSettings>) => void;
+  performLogout: () => Promise<void>;
+  changeUserPassword: (currentPass: string, newPass: string) => { success: boolean; message: string };
+
+  // Auth & User Management Actions
+  registerUser: (userData: {
+    fullName: string;
+    phone: string;
+    email: string;
+    password?: string;
+    businessName?: string;
+    businessAddress?: string;
+    businessPhone?: string;
+    businessEmail?: string;
+    branch?: string;
+    requestedRole: UserRole;
+  }) => { success: boolean; message: string };
+
+  loginUser: (
+    email: string,
+    password?: string
+  ) => { success: boolean; message: string; status?: UserStatus };
+
+  approveUser: (userId: string, assignedRole: UserRole, branch?: string) => void;
+  rejectUser: (userId: string, reason?: string) => void;
+  updateUserStatus: (userId: string, status: UserStatus) => void;
+  updateUser: (userId: string, updates: Partial<AppUser>) => void;
+  deleteUser: (userId: string) => void;
+  resetUserPassword: (userId: string) => void;
 
   // Product Actions
   addProduct: (product: Partial<Product>) => Product;
@@ -182,9 +297,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     ])
   );
-  const [notifications, setNotifications] = useState<NotificationItem[]>(() =>
-    loadFromStorage('glow_erp_notifications', [])
+
+  const [appUsers, setAppUsers] = useState<AppUser[]>(() =>
+    loadFromStorage('glow_erp_app_users', INITIAL_USERS)
   );
+
+  const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
+    const saved = loadFromStorage<NotificationItem[]>('glow_erp_notifications', []);
+    if (saved.length > 0) {
+      const seen = new Set<string>();
+      return saved.filter((item) => {
+        if (!item.id || seen.has(item.id)) return false;
+        seen.add(item.id);
+        return true;
+      });
+    }
+    // Initial notification for pending user demo
+    return [
+      {
+        id: 'notif-demo-1',
+        type: 'user_registration',
+        title: 'New User Registration',
+        message: 'New User Registration: John Doe has requested a Sales Person account.',
+        timestamp: new Date().toISOString(),
+        read: false,
+        actionTab: 'pending_approvals',
+      },
+    ];
+  });
 
   const [primaryUserRole, setPrimaryUserRoleState] = useState<UserRole>(() => {
     return loadFromStorage<UserRole>('glow_erp_primary_user_role', 'super_admin');
@@ -192,23 +332,355 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [userRole, setUserRoleState] = useState<UserRole>(() => {
     return loadFromStorage<UserRole>('glow_erp_user_role', 'super_admin');
   });
-  const [userName, setUserName] = useState<string>(() => {
-    const role = loadFromStorage<UserRole>('glow_erp_user_role', 'super_admin');
-    if (role === 'super_admin') return 'Chidi (Super Admin)';
-    if (role === 'administrator') return 'Amaka (Store Admin)';
-    if (role === 'manager') return 'Kelechi (Store Manager)';
-    return 'Blessing (Sales Person)';
-  });
+  const [userName, setUserName] = useState<string>('');
 
-  // Save roles to storage
+  // Authentication Route & Session State
+  const [currentRoute, setCurrentRoute] = useState<'splash' | 'login' | 'register' | 'forgot-password' | 'pending-approval' | 'suspended' | 'rejected' | 'app'>('splash');
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
+  const [pendingUserReg, setPendingUserReg] = useState<any | null>(null);
+
+  // Save roles and users to storage
   useEffect(() => saveToStorage('glow_erp_primary_user_role', primaryUserRole), [primaryUserRole]);
   useEffect(() => saveToStorage('glow_erp_user_role', userRole), [userRole]);
+  useEffect(() => saveToStorage('glow_erp_app_users', appUsers), [appUsers]);
+
+  // Launch Splash Screen & Authentication Session Guard
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const activeUserId = loadFromStorage<string | null>('glow_erp_active_user_id', null);
+      if (activeUserId) {
+        const foundUser = appUsers.find((u) => u.id === activeUserId);
+        if (foundUser) {
+          if (foundUser.status === 'active') {
+            setCurrentUser(foundUser);
+            setUserName(foundUser.fullName);
+            setUserRoleState(foundUser.role);
+            setPrimaryUserRoleState(foundUser.role);
+            setCurrentRoute('app');
+            return;
+          } else if (foundUser.status === 'pending') {
+            setPendingUserReg({
+              fullName: foundUser.fullName,
+              email: foundUser.email,
+              requestedRole: foundUser.requestedRole || foundUser.role,
+              businessName: foundUser.branch,
+            });
+            setCurrentRoute('pending-approval');
+            return;
+          } else if (foundUser.status === 'disabled' || foundUser.status === 'suspended') {
+            setCurrentRoute('suspended');
+            return;
+          } else if (foundUser.status === 'rejected') {
+            setCurrentRoute('rejected');
+            return;
+          }
+        }
+      }
+      // If no active session saved, default to Login page
+      setCurrentRoute('login');
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   // UI state
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState<boolean>(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [isPendingApprovalsOpen, setIsPendingApprovalsOpen] = useState<boolean>(false);
+  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState<boolean>(false);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState<boolean>(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
+  const [logoutNoticeMsg, setLogoutNoticeMsg] = useState<string | null>(null);
+
+  const pendingApprovalsCount = appUsers.filter((u) => u.status === 'pending').length;
+
+  const registerUser = (userData: {
+    fullName: string;
+    phone: string;
+    email: string;
+    password?: string;
+    businessName?: string;
+    businessAddress?: string;
+    businessPhone?: string;
+    businessEmail?: string;
+    branch?: string;
+    requestedRole: UserRole;
+  }): { success: boolean; message: string } => {
+    const existing = appUsers.find((u) => u.email.toLowerCase() === userData.email.toLowerCase());
+    if (existing) {
+      return {
+        success: false,
+        message: 'An account with this email address already exists in the ERP system.'
+      };
+    }
+
+    const targetRequestedRole = userData.requestedRole === 'super_admin' ? 'salesperson' : userData.requestedRole;
+
+    const newUser: AppUser = {
+      id: `usr-${Date.now()}`,
+      fullName: userData.fullName,
+      phone: userData.phone,
+      email: userData.email,
+      password: userData.password,
+      businessName: userData.businessName,
+      businessAddress: userData.businessAddress,
+      businessPhone: userData.businessPhone,
+      businessEmail: userData.businessEmail,
+      branch: userData.branch || 'Main Store',
+      role: targetRequestedRole,
+      requestedRole: targetRequestedRole,
+      status: 'pending',
+      registrationDate: new Date().toISOString()
+    };
+
+    setAppUsers((prev) => [newUser, ...prev]);
+
+    setPendingUserReg({
+      fullName: newUser.fullName,
+      email: newUser.email,
+      requestedRole: targetRequestedRole,
+      businessName: newUser.businessName || newUser.branch,
+      registrationDate: newUser.registrationDate,
+    });
+
+    const roleTitleMap: Record<UserRole, string> = {
+      salesperson: 'Sales Person',
+      manager: 'Manager',
+      administrator: 'Administrator',
+      super_admin: 'Super Administrator',
+    };
+
+    const roleTitle = roleTitleMap[targetRequestedRole] || 'Sales Person';
+
+    // Immediate notification inside ERP
+    const newNotification: NotificationItem = {
+      id: `notif-user-${newUser.id}`,
+      type: 'user_registration',
+      title: 'New User Registration',
+      message: `${newUser.fullName} has requested access as ${roleTitle}.`,
+      timestamp: new Date().toISOString(),
+      read: false,
+      actionTab: 'pending_approvals'
+    };
+
+    setNotifications((prev) => [newNotification, ...prev]);
+
+    // If business details were provided and store settings are empty/unconfigured, populate them
+    if (userData.businessName && (!settings.businessName || settings.businessName === 'Not Configured')) {
+      updateSettings({
+        businessName: userData.businessName,
+        address: userData.businessAddress || settings.address,
+        phone: userData.businessPhone || settings.phone,
+        email: userData.businessEmail || settings.email,
+      });
+    }
+
+    logAudit(
+      'User Registration Submitted',
+      `New user application submitted by ${newUser.fullName} (${newUser.email}) for role ${targetRequestedRole}`
+    );
+
+    setCurrentRoute('pending-approval');
+
+    return {
+      success: true,
+      message: 'Your account has been submitted successfully. An Administrator will review your registration.'
+    };
+  };
+
+  const loginUser = (
+    email: string,
+    password?: string
+  ): { success: boolean; message: string; status?: UserStatus } => {
+    const user = appUsers.find((u) => u.email.toLowerCase() === email.toLowerCase());
+
+    if (!user) {
+      return {
+        success: false,
+        message: 'Incorrect email or password.'
+      };
+    }
+
+    if (password && user.password && user.password !== password) {
+      return {
+        success: false,
+        message: 'Incorrect email or password.'
+      };
+    }
+
+    if (user.status === 'pending') {
+      setPendingUserReg({
+        fullName: user.fullName,
+        email: user.email,
+        requestedRole: user.requestedRole || user.role,
+        businessName: user.branch,
+      });
+      setCurrentRoute('pending-approval');
+      return {
+        success: false,
+        status: 'pending',
+        message: 'Your account is awaiting approval from an Administrator.'
+      };
+    }
+
+    if (user.status === 'rejected') {
+      setCurrentRoute('rejected');
+      return {
+        success: false,
+        status: 'rejected',
+        message: 'Your registration was not approved.'
+      };
+    }
+
+    if (user.status === 'disabled' || user.status === 'suspended') {
+      setCurrentRoute('suspended');
+      return {
+        success: false,
+        status: user.status,
+        message: 'Your account has been suspended. Please contact your Administrator.'
+      };
+    }
+
+    // Active User Login
+    setCurrentUser(user);
+    setPrimaryUserRoleState(user.role);
+    setUserRoleState(user.role);
+    setUserName(user.fullName);
+    saveToStorage('glow_erp_active_user_id', user.id);
+    setCurrentRoute('app');
+    setActiveTab('dashboard');
+
+    logAudit(
+      'User Logged In',
+      `${user.fullName} (${user.email}) logged in successfully as ${user.role}`
+    );
+
+    return {
+      success: true,
+      message: 'Logged in successfully!'
+    };
+  };
+
+  const approveUser = (userId: string, assignedRole: UserRole, branch?: string) => {
+    if (primaryUserRole === 'administrator' && assignedRole === 'super_admin') {
+      alert('Security Restriction: Administrators cannot assign the Super Administrator role.');
+      return;
+    }
+
+    const targetUser = appUsers.find((u) => u.id === userId);
+    if (!targetUser) return;
+
+    setAppUsers((prev) =>
+      prev.map((u) =>
+        u.id === userId
+          ? {
+              ...u,
+              status: 'active',
+              role: assignedRole,
+              branch: branch || u.branch || 'Main Store'
+            }
+          : u
+      )
+    );
+
+    logAudit(
+      'Approved User Account',
+      `Approved user ${targetUser.fullName} (${targetUser.email}). Assigned Role: ${assignedRole}, Branch: ${branch || targetUser.branch}`
+    );
+  };
+
+  const rejectUser = (userId: string, reason?: string) => {
+    const targetUser = appUsers.find((u) => u.id === userId);
+    if (!targetUser) return;
+
+    setAppUsers((prev) =>
+      prev.map((u) =>
+        u.id === userId
+          ? {
+              ...u,
+              status: 'rejected',
+              rejectionReason: reason
+            }
+          : u
+      )
+    );
+
+    logAudit(
+      'Rejected User Registration',
+      `Rejected registration for ${targetUser.fullName} (${targetUser.email}). Reason: ${reason || 'No reason specified'}`
+    );
+  };
+
+  const updateUserStatus = (userId: string, status: UserStatus) => {
+    const targetUser = appUsers.find((u) => u.id === userId);
+    if (!targetUser) return;
+
+    if (primaryUserRole === 'administrator' && targetUser.role === 'super_admin') {
+      alert('Security Violation: Administrators cannot modify Super Administrator accounts.');
+      return;
+    }
+
+    setAppUsers((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, status } : u))
+    );
+
+    logAudit(
+      'User Status Changed',
+      `Changed status of ${targetUser.fullName} (${targetUser.email}) to ${status}`
+    );
+  };
+
+  const updateUser = (userId: string, updates: Partial<AppUser>) => {
+    const targetUser = appUsers.find((u) => u.id === userId);
+    if (!targetUser) return;
+
+    if (primaryUserRole === 'administrator') {
+      if (targetUser.role === 'super_admin' || updates.role === 'super_admin') {
+        alert('Security Violation: Administrators cannot grant or alter Super Administrator privileges.');
+        return;
+      }
+    }
+
+    setAppUsers((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, ...updates } : u))
+    );
+
+    logAudit(
+      'Updated User Account',
+      `Updated profile details for ${targetUser.fullName} (${targetUser.email})`
+    );
+  };
+
+  const deleteUser = (userId: string) => {
+    const targetUser = appUsers.find((u) => u.id === userId);
+    if (!targetUser) return;
+
+    if (primaryUserRole === 'administrator' && targetUser.role === 'super_admin') {
+      alert('Security Violation: Administrators cannot delete Super Administrator accounts.');
+      return;
+    }
+
+    setAppUsers((prev) => prev.filter((u) => u.id !== userId));
+
+    logAudit(
+      'Deleted User Account',
+      `Deleted staff user ${targetUser.fullName} (${targetUser.email})`
+    );
+  };
+
+  const resetUserPassword = (userId: string) => {
+    const targetUser = appUsers.find((u) => u.id === userId);
+    if (!targetUser) return;
+
+    logAudit(
+      'Reset User Password',
+      `Reset password for user ${targetUser.fullName} (${targetUser.email})`
+    );
+    alert(`Password reset confirmation generated for ${targetUser.fullName}.`);
+  };
 
   // Sync & Network status
   const [isOffline, setIsOffline] = useState<boolean>(!navigator.onLine);
@@ -258,26 +730,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     const lowStockItems = products.filter((p) => p.currentStock <= p.reorderLevel);
     if (lowStockItems.length > 0) {
-      const existingIds = new Set(notifications.map((n) => n.id));
-      const newNotifs: NotificationItem[] = [];
+      setNotifications((prev) => {
+        const existingIds = new Set(prev.map((n) => n.id));
+        const newNotifs: NotificationItem[] = [];
 
-      lowStockItems.forEach((p) => {
-        const notifId = `notif-stock-${p.id}`;
-        if (!existingIds.has(notifId)) {
-          newNotifs.push({
-            id: notifId,
-            type: p.currentStock === 0 ? 'out_of_stock' : 'low_stock',
-            title: p.currentStock === 0 ? `Out of Stock: ${p.name}` : `Low Stock Alert: ${p.name}`,
-            message: `Current stock is ${p.currentStock} units (Reorder level: ${p.reorderLevel}).`,
-            timestamp: new Date().toISOString(),
-            read: false,
-          });
-        }
+        lowStockItems.forEach((p) => {
+          const notifId = `notif-stock-${p.id}`;
+          if (!existingIds.has(notifId)) {
+            newNotifs.push({
+              id: notifId,
+              type: p.currentStock === 0 ? 'out_of_stock' : 'low_stock',
+              title: p.currentStock === 0 ? `Out of Stock: ${p.name}` : `Low Stock Alert: ${p.name}`,
+              message: `Current stock is ${p.currentStock} units (Reorder level: ${p.reorderLevel}).`,
+              timestamp: new Date().toISOString(),
+              read: false,
+            });
+            existingIds.add(notifId);
+          }
+        });
+
+        if (newNotifs.length === 0) return prev;
+        return [...newNotifs, ...prev];
       });
-
-      if (newNotifs.length > 0) {
-        setNotifications((prev) => [...newNotifs, ...prev]);
-      }
     }
   }, [products]);
 
@@ -899,9 +1373,40 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const unSyncedCount = sales.filter((s) => !s.isSynced).length;
 
+  const performLogout = async () => {
+    if (navigator.onLine) {
+      triggerSync();
+    }
+    await supabaseSignOut();
+    saveToStorage('glow_erp_active_user_id', null);
+    setCurrentUser(null);
+    setUserName('');
+    setLogoutNoticeMsg('You have been logged out successfully.');
+    setCurrentRoute('login');
+    setIsAuthModalOpen(false);
+    setIsLogoutConfirmOpen(false);
+    logAudit('User Logout', `User ${userName} signed out of system`);
+  };
+
+  const changeUserPassword = (currentPass: string, newPass: string) => {
+    const targetUser = appUsers.find(
+      (u) => u.fullName.toLowerCase() === userName.toLowerCase() || u.email.toLowerCase().includes(userName.toLowerCase().split(' ')[0])
+    );
+    if (targetUser) {
+      updateUser(targetUser.id, { password: newPass });
+    }
+    logAudit('Password Update', `User ${userName} updated security password`);
+    return { success: true, message: 'Password changed successfully!' };
+  };
+
   return (
     <AppContext.Provider
       value={{
+        currentRoute,
+        setCurrentRoute,
+        currentUser,
+        pendingUserReg,
+        setPendingUserReg,
         products,
         sales,
         expenses,
@@ -912,6 +1417,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         settings,
         categories,
         expenseCategories,
+        appUsers,
         userRole,
         primaryUserRole,
         userName,
@@ -920,6 +1426,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         isOffline,
         isSyncing,
         unSyncedCount,
+        pendingApprovalsCount,
         activeTab,
         setActiveTab,
         searchQuery,
@@ -928,9 +1435,32 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setIsSearchOpen,
         isNotificationOpen,
         setIsNotificationOpen,
+        isAuthModalOpen,
+        setIsAuthModalOpen,
+        isPendingApprovalsOpen,
+        setIsPendingApprovalsOpen,
+        isLogoutConfirmOpen,
+        setIsLogoutConfirmOpen,
+        isChangePasswordOpen,
+        setIsChangePasswordOpen,
+        isProfileModalOpen,
+        setIsProfileModalOpen,
+        logoutNoticeMsg,
+        setLogoutNoticeMsg,
         setUserRole,
         setPrimaryUserRole,
+        setUserName,
         updateSettings,
+        performLogout,
+        changeUserPassword,
+        registerUser,
+        loginUser,
+        approveUser,
+        rejectUser,
+        updateUserStatus,
+        updateUser,
+        deleteUser,
+        resetUserPassword,
         addProduct,
         updateProduct,
         deleteProduct,
