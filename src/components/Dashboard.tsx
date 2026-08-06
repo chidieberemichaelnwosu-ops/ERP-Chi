@@ -21,7 +21,8 @@ import {
   ReceiptText,
   Clock,
   CheckCircle2,
-  Tag
+  Tag,
+  Users
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -221,76 +222,78 @@ export const Dashboard: React.FC = () => {
   };
 
   // ------------------------------------------------------------------
-  // QUICK ACTIONS COMPONENT (Single primary New Sale button)
+  // QUICK ACTIONS COMPONENT (Balanced operational shortcuts without duplicate POS)
   // ------------------------------------------------------------------
-  const QuickActionsGrid = () => (
-    <div className="space-y-2">
-      <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-400">
-        Quick Action Controls
-      </h3>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {/* 1. Primary New Sale POS (Single Primary Entry Point) */}
-        <button
-          onClick={() => setActiveTab('sales')}
-          className="p-4 bg-rose-600 text-white rounded-2xl border border-rose-500 text-left hover:bg-rose-700 active:scale-95 transition flex items-center gap-3 shadow-sm shadow-rose-950/20"
-        >
-          <div className="p-2.5 rounded-xl bg-white/20 text-white">
-            <Plus className="w-5 h-5 stroke-[3]" />
-          </div>
-          <div>
-            <span className="font-black text-xs block text-white">New Sale POS</span>
-            <span className="text-[10px] text-rose-100 font-medium">Record customer order</span>
-          </div>
-        </button>
+  const QuickActionsGrid = () => {
+    const isAdminOrManager = userRole === 'manager' || userRole === 'administrator' || userRole === 'super_admin';
 
-        {/* 2. New Expense (Manager, Administrator & Super Admin) */}
-        {(userRole === 'manager' || userRole === 'administrator' || userRole === 'super_admin') && (
-          <button
-            onClick={() => setActiveTab('expenses')}
-            className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-left hover:border-rose-500 active:scale-95 transition flex items-center gap-3"
-          >
-            <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600">
-              <Receipt className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="font-extrabold text-xs block text-slate-900 dark:text-white">New Expense</span>
-              <span className="text-[10px] text-slate-400">Log store overheads</span>
-            </div>
-          </button>
-        )}
+    return (
+      <div className="space-y-2">
+        <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-400">
+          Quick Action Controls
+        </h3>
+        <div className={`grid grid-cols-1 ${isAdminOrManager ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-3'} gap-3 sm:gap-4`}>
+          {/* 1. New Expense (Manager, Administrator & Super Admin) */}
+          {isAdminOrManager && (
+            <button
+              onClick={() => setActiveTab('expenses')}
+              className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-left hover:border-rose-500 active:scale-95 transition flex items-center gap-3 shadow-2xs hover:shadow-sm"
+            >
+              <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 shrink-0">
+                <Receipt className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <span className="font-extrabold text-xs block text-slate-900 dark:text-white truncate">New Expense</span>
+                <span className="text-[10px] text-slate-400 truncate block">Log store overheads</span>
+              </div>
+            </button>
+          )}
 
-        {/* 3. Stock Control / Inventory (Manager, Administrator & Super Admin) */}
-        {(userRole === 'manager' || userRole === 'administrator' || userRole === 'super_admin') && (
+          {/* 2. Stock Control / Inventory */}
           <button
             onClick={() => setActiveTab('inventory')}
-            className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-left hover:border-rose-500 active:scale-95 transition flex items-center gap-3"
+            className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-left hover:border-rose-500 active:scale-95 transition flex items-center gap-3 shadow-2xs hover:shadow-sm"
           >
-            <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600">
+            <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 shrink-0">
               <Boxes className="w-5 h-5" />
             </div>
-            <div>
-              <span className="font-extrabold text-xs block text-slate-900 dark:text-white">Stock Control</span>
-              <span className="text-[10px] text-slate-400">Manage products & restocks</span>
+            <div className="min-w-0">
+              <span className="font-extrabold text-xs block text-slate-900 dark:text-white truncate">Stock Control</span>
+              <span className="text-[10px] text-slate-400 truncate block">Manage products & restocks</span>
             </div>
           </button>
-        )}
 
-        {/* 4. View Transactions History (All Roles) */}
-        <button
-          onClick={() => setActiveTab('transactions')}
-          className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-left hover:border-rose-500 active:scale-95 transition flex items-center gap-3"
-        >
-          <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600">
-            <ReceiptText className="w-5 h-5" />
-          </div>
-          <div>
-            <span className="font-extrabold text-xs block text-slate-900 dark:text-white">All Transactions</span>
-            <span className="text-[10px] text-slate-400">Complete sales & expenses audit</span>
-          </div>
-        </button>
+          {/* 3. Customer Directory */}
+          <button
+            onClick={() => setActiveTab('customers')}
+            className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-left hover:border-rose-500 active:scale-95 transition flex items-center gap-3 shadow-2xs hover:shadow-sm"
+          >
+            <div className="p-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 shrink-0">
+              <Users className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <span className="font-extrabold text-xs block text-slate-900 dark:text-white truncate">Customers & Debts</span>
+              <span className="text-[10px] text-slate-400 truncate block">View balances & history</span>
+            </div>
+          </button>
+
+          {/* 4. View Transactions History */}
+          <button
+            onClick={() => setActiveTab('transactions')}
+            className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-left hover:border-rose-500 active:scale-95 transition flex items-center gap-3 shadow-2xs hover:shadow-sm"
+          >
+            <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 shrink-0">
+              <ReceiptText className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <span className="font-extrabold text-xs block text-slate-900 dark:text-white truncate">All Transactions</span>
+              <span className="text-[10px] text-slate-400 truncate block">Sales & expenses audit</span>
+            </div>
+          </button>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // ------------------------------------------------------------------
   // RECENT ACTIVITY LIST (TOP 5 EVENTS ONLY)
